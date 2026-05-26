@@ -1,5 +1,6 @@
 run = "npm install && npm run dev"
 language = "nodejs"
+modules = ["python-3.11", "nodejs-20"]
 
 [packager]
 language = "nodejs"
@@ -18,3 +19,4 @@ externalPort = 80
 
 [agent]
 expertMode = true
+integrations = ["github:1.0.0"]
