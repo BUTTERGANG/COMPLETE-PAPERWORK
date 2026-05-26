@@ -1,0 +1,2 @@
+export const DEFAULT_MILEAGE_RATE = 0.67;
+export const COMPLIANCE_BONUS_AMOUNT = 40;
