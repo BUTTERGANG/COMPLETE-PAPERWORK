@@ -10,7 +10,7 @@ language = "nodejs"
   enabledForHosting = false
 
 [nix]
-channel = "stable-24_05"
+channel = "stable-25_05"
 
 [[ports]]
 localPort = 8080
