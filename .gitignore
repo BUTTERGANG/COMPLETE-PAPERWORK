@@ -31,8 +31,7 @@ dist-ssr
 # Claude Code
 .claude/
 
-# Replit
-.replit
+# Replit (runtime only — .replit must be tracked so GitHub import works)
 .nix-env
 .config/
 .upm/

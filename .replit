@@ -1,0 +1,17 @@
+run = "npm install && npm run dev"
+language = "nodejs"
+
+[packager]
+language = "nodejs"
+
+  [packager.features]
+  packageSearch = true
+  guessImports = true
+  enabledForHosting = false
+
+[nix]
+channel = "stable-24_05"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
