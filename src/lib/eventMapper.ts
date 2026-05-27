@@ -1,124 +1,139 @@
 import type { EventFormData, ParsedEvent } from '../types/event';
-import { DEFAULT_MILEAGE_RATE } from './constants';
 
 const defaultEvent: EventFormData = {
   event_date: '',
   event_type: '',
+  assigned_dj: '',
+  second_assigned: '',
+  system_number: '',
+  dj_attire: '',
   venue_name: '',
   venue_address: '',
+  venue_phone: '',
+  venue_contact: '',
+  venue_notes: '',
+  ceremony_separate_location: null,
   client_name: '',
   client_phone: '',
   client_email: '',
+  partner_phone: '',
+  partner_email: '',
+  secondary_contact: '',
+  bride_name: '',
+  groom_name: '',
+  bride_parents: '',
+  groom_parents: '',
+  guest_count: null,
+  maid_of_honor: '',
+  best_man: '',
+  flower_girl: '',
+  ring_bearer: '',
+  introduction_name: '',
+  bridesmaids: [],
+  groomsmen: [],
+  pickup_time: '',
+  setup_time: '',
+  guest_arrival_time: '',
+  load_in_time: '',
+  ceremony_start_time: '',
+  ceremony_end_time: '',
   start_time: '',
   end_time: '',
+  booked_hours: null,
+  dinner_service: '',
+  blessing_by: '',
+  toasts_by: '',
+  take_requests: null,
+  introduce_couple: null,
+  introduce_wedding_party: null,
+  activities: [],
+  music_variety: [],
+  pay_type: '',
   base_pay: 0,
   compliance_bonus: 0,
-  mileage_miles: 0,
-  mileage_rate: DEFAULT_MILEAGE_RATE,
+  over_hours_pay: 0,
+  fuel_recovery: 0,
+  tip: 0,
+  overtime_pay: 0,
+  other_pay: 0,
+  timeline: [],
+  music_selections: null,
+  special_instructions: '',
   notes: '',
   raw_ai_summary: null,
   status: 'upcoming',
 };
 
-function formatTimeline(timeline: ParsedEvent['timeline']): string {
-  if (!timeline || timeline.length === 0) return '';
-  return timeline.map((e) => `${e.time} – ${e.activity}`).join('\n');
-}
-
-function formatMusicSelections(music: ParsedEvent['music_selections']): string {
-  if (!music) return '';
-  const lines: string[] = [];
-
-  const labeledFields: [keyof typeof music, string][] = [
-    ['first_dance', 'First Dance'],
-    ['father_daughter_dance', 'Father/Daughter Dance'],
-    ['mother_son_dance', 'Mother/Son Dance'],
-    ['cake_cutting', 'Cake Cutting'],
-    ['bouquet_toss', 'Bouquet Toss'],
-    ['garter_toss', 'Garter Toss'],
-    ['grand_entrance', 'Grand Entrance'],
-    ['last_dance', 'Last Dance'],
-    ['send_off_exit', 'Send Off / Exit'],
-    ['ceremony_processional', 'Ceremony Processional'],
-    ['ceremony_recessional', 'Ceremony Recessional'],
-    ['ceremony_interlude', 'Ceremony Interlude'],
-  ];
-
-  for (const [key, label] of labeledFields) {
-    const val = music[key];
-    if (val && typeof val === 'string') {
-      lines.push(`${label}: ${val}`);
-    }
-  }
-
-  if (music.must_play?.length) lines.push(`Must Play:\n${music.must_play.map((s) => `  • ${s}`).join('\n')}`);
-  if (music.do_not_play?.length) lines.push(`Do Not Play:\n${music.do_not_play.map((s) => `  ✕ ${s}`).join('\n')}`);
-  if (music.music_preferences) lines.push(`Music Preferences: ${music.music_preferences}`);
-
-  return lines.length > 0 ? lines.join('\n') : '';
-}
-
-function formatCoupleNames(parsed: ParsedEvent): string {
-  const lines: string[] = [];
-  if (parsed.bride_name) lines.push(`Bride: ${parsed.bride_name}`);
-  if (parsed.groom_name) lines.push(`Groom: ${parsed.groom_name}`);
-  return lines.length > 0 ? lines.join('\n') : '';
-}
-
-function formatVenueInfo(parsed: ParsedEvent): string {
-  const lines: string[] = [];
-  if (parsed.venue_phone) lines.push(`Venue phone: ${parsed.venue_phone}`);
-  if (parsed.venue_contact) lines.push(`Venue contact: ${parsed.venue_contact}`);
-  if (parsed.venue_notes) lines.push(`Venue notes: ${parsed.venue_notes}`);
-  return lines.length > 0 ? lines.join('\n') : '';
-}
-
 export function applyParsedData(parsed: ParsedEvent): EventFormData {
-  const parts: string[] = [];
-
-  if (parsed.load_in_time) parts.push(`Load-in: ${parsed.load_in_time}`);
-  if (parsed.secondary_contact) parts.push(`Secondary contact: ${parsed.secondary_contact}`);
-  if (parsed.guest_count) parts.push(`Guest count: ${parsed.guest_count}`);
-  if (parsed.pay_type && parsed.pay_type !== 'flat') parts.push(`Pay type: ${parsed.pay_type}`);
-
-  const venueInfoStr = formatVenueInfo(parsed);
-  if (venueInfoStr) parts.push(`\nVenue Info:\n${venueInfoStr}`);
-
-  const coupleStr = formatCoupleNames(parsed);
-  if (coupleStr) parts.push(`\nCouple:\n${coupleStr}`);
-
-  const timelineStr = formatTimeline(parsed.timeline);
-  if (timelineStr) parts.push(`\nTimeline:\n${timelineStr}`);
-
-  const musicStr = formatMusicSelections(parsed.music_selections);
-  if (musicStr) parts.push(`\nMusic Selections:\n${musicStr}`);
-
-  if (parsed.special_instructions) parts.push(`\nSpecial instructions:\n${parsed.special_instructions}`);
-  if (parsed.notes) parts.push(`\nNotes:\n${parsed.notes}`);
-
-  const fullNotes = parts.length > 0 ? parts.join('\n') : '';
-  const has_ai_data = parsed.event_date || parsed.venue_name || parsed.event_type || parsed.client_name || parsed.bride_name || parsed.groom_name || timelineStr || musicStr;
-
-  // Build a rich summary: "Wedding – Sarah & Mike at Venue on Jan 1"
   const coupleSummary = parsed.bride_name && parsed.groom_name
     ? `${parsed.bride_name} & ${parsed.groom_name}`
     : parsed.bride_name || parsed.groom_name || null;
+
+  const has_ai_data = parsed.event_date || parsed.venue_name || parsed.event_type ||
+    parsed.client_name || parsed.bride_name || parsed.groom_name ||
+    parsed.timeline.length > 0;
 
   return {
     ...defaultEvent,
     event_date: parsed.event_date || '',
     event_type: parsed.event_type || '',
+    assigned_dj: parsed.assigned_dj || '',
+    second_assigned: parsed.second_assigned || '',
+    system_number: parsed.system_number || '',
+    dj_attire: parsed.dj_attire || '',
     venue_name: parsed.venue_name || '',
     venue_address: parsed.venue_address || '',
+    venue_phone: parsed.venue_phone || '',
+    venue_contact: parsed.venue_contact || '',
+    venue_notes: parsed.venue_notes || '',
+    ceremony_separate_location: parsed.ceremony_separate_location ?? null,
     client_name: parsed.client_name || coupleSummary || '',
     client_phone: parsed.client_phone || '',
     client_email: parsed.client_email || '',
+    partner_phone: parsed.partner_phone || '',
+    partner_email: parsed.partner_email || '',
+    secondary_contact: parsed.secondary_contact || '',
+    bride_name: parsed.bride_name || '',
+    groom_name: parsed.groom_name || '',
+    bride_parents: parsed.bride_parents || '',
+    groom_parents: parsed.groom_parents || '',
+    guest_count: parsed.guest_count ?? null,
+    maid_of_honor: parsed.maid_of_honor || '',
+    best_man: parsed.best_man || '',
+    flower_girl: parsed.flower_girl || '',
+    ring_bearer: parsed.ring_bearer || '',
+    introduction_name: parsed.introduction_name || '',
+    pickup_time: parsed.pickup_time || '',
+    setup_time: parsed.setup_time || '',
+    guest_arrival_time: parsed.guest_arrival_time || '',
+    load_in_time: parsed.load_in_time || '',
+    ceremony_start_time: parsed.ceremony_start_time || '',
+    ceremony_end_time: parsed.ceremony_end_time || '',
     start_time: parsed.start_time || '',
     end_time: parsed.end_time || '',
+    booked_hours: parsed.booked_hours ?? null,
+    dinner_service: parsed.dinner_service || '',
+    blessing_by: parsed.blessing_by || '',
+    toasts_by: parsed.toasts_by || '',
+    take_requests: parsed.take_requests ?? null,
+    introduce_couple: parsed.introduce_couple ?? null,
+    introduce_wedding_party: parsed.introduce_wedding_party ?? null,
+    bridesmaids: parsed.bridesmaids ?? [],
+    groomsmen: parsed.groomsmen ?? [],
+    activities: parsed.activities ?? [],
+    music_variety: parsed.music_variety ?? [],
+    timeline: parsed.timeline ?? [],
+    music_selections: parsed.music_selections ?? null,
+    pay_type: parsed.pay_type || '',
     base_pay: parsed.base_pay || 0,
     compliance_bonus: parsed.compliance_bonus || 0,
-    mileage_miles: parsed.mileage_miles || 0,
-    notes: fullNotes,
+    over_hours_pay: parsed.over_hours_pay || 0,
+    fuel_recovery: parsed.fuel_recovery || 0,
+    tip: parsed.tip || 0,
+    overtime_pay: parsed.overtime_pay || 0,
+    other_pay: parsed.other_pay || 0,
+    special_instructions: parsed.special_instructions || '',
+    notes: parsed.notes || '',
     raw_ai_summary: has_ai_data
       ? `${parsed.event_type || 'Event'} – ${coupleSummary || 'TBD'} at ${parsed.venue_name || 'TBD'} on ${parsed.event_date || 'TBD'}`
       : null,
