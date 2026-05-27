@@ -209,6 +209,7 @@ export default function EventDetail() {
   };
 
   const confirmDelete = async () => {
+    if (!id) return;
     setShowDeleteConfirm(false);
     await deleteEvent(id);
     navigate('/events');

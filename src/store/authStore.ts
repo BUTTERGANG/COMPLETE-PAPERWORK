@@ -10,7 +10,7 @@ interface AuthState {
   signOut: () => void;
 }
 
-const isDev = () => !process.env.NODE_ENV || process.env.NODE_ENV !== 'production';
+const isDev = () => import.meta.env.DEV;
 
 export const useAuthStore = create<AuthState>()(
   persist(

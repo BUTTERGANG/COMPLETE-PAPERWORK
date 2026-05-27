@@ -273,7 +273,7 @@ app.put('/api/events/:id', async (req, res) => {
     const hasPayFields = 'base_pay' in body || 'compliance_bonus' in body ||
       'mileage_miles' in body || 'mileage_rate' in body;
 
-    let updateData: Record<string, unknown> = { ...body, updated_at: new Date() };
+    const updateData: Record<string, unknown> = { ...body, updated_at: new Date() };
 
     if (hasPayFields) {
       // Fetch current values for any fields not being updated
@@ -325,7 +325,9 @@ const distPath = path.join(__dirname, '../dist');
 
 app.use(express.static(distPath));
 app.get('/{*path}', (_req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
+  res.sendFile(path.join(distPath, 'index.html'), (err) => {
+    if (err) res.status(200).send('Dev mode: frontend served by Vite on :8080');
+  });
 });
 
 const PORT = process.env.API_PORT || 3000;
