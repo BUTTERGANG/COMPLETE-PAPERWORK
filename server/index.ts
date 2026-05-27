@@ -7,7 +7,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import * as schema from '../src/db/schema';
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
 });
 
 const { Pool } = pg;
@@ -131,8 +132,8 @@ app.get('/api/auth/user', (req, res) => {
 // Parse paperwork with AI (server-side, keeps API key secret)
 app.post('/api/parse-paperwork', async (req, res) => {
   try {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return res.status(503).json({ error: 'AI parsing is not configured — the ANTHROPIC_API_KEY secret is not set.' });
+    if (!process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: 'AI parsing is not configured — the Anthropic AI integration is not connected.' });
     }
 
     const body = req.body as { base64Images?: string[]; base64Image?: string };
@@ -202,7 +203,7 @@ Return ONLY the JSON object, no markdown.`;
     }));
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4000,
       messages: [{
         role: 'user',
