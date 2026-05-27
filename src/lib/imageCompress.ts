@@ -1,5 +1,21 @@
-const DEFAULT_MAX_WIDTH = 1024;
+import heic2any from 'heic2any';
+
+// 1568px is Claude's optimal long-edge cap (~1.15MP) — larger costs no extra
+// tokens but improves OCR accuracy on dense paperwork.
+const DEFAULT_MAX_WIDTH = 1568;
 const DEFAULT_QUALITY = 0.8;
+
+/**
+ * iPhone photos are often HEIC/HEIF, which non-Safari browsers can't draw to a
+ * canvas and Anthropic can't read. Convert those to JPEG first; pass anything
+ * else through untouched.
+ */
+async function toCanvasReadable(file: File): Promise<Blob> {
+  const isHeic = /image\/hei[cf]/i.test(file.type) || /\.(heic|heif)$/i.test(file.name);
+  if (!isHeic) return file;
+  const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+  return Array.isArray(converted) ? converted[0] : converted;
+}
 
 /**
  * Load an image from a data URL and return an HTMLImageElement.
@@ -14,9 +30,9 @@ function loadImage(dataUrl: string): Promise<HTMLImageElement> {
 }
 
 /**
- * Read a File as a data URL string.
+ * Read a File/Blob as a data URL string.
  */
-function readFileAsDataURL(file: File): Promise<string> {
+function readFileAsDataURL(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
@@ -40,8 +56,9 @@ export async function compressImage(
   quality: number = DEFAULT_QUALITY,
 ): Promise<string> {
   try {
-    // Read the file into a data URL so we can load it into an Image element
-    const dataUrl = await readFileAsDataURL(file);
+    // Convert HEIC/HEIF to JPEG so it can be drawn to a canvas, then read it
+    const readable = await toCanvasReadable(file);
+    const dataUrl = await readFileAsDataURL(readable);
     const img = await loadImage(dataUrl);
 
     // Calculate scaled dimensions that fit within maxWidth on the longest side

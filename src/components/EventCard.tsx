@@ -28,7 +28,7 @@ function EventCard({ event, onClick }: EventCardProps) {
             {format(parseLocalDate(event.event_date), 'MMM d')}
           </p>
         </div>
-        <span className={`badge ${statusClass}`} />
+        <span className={`badge ${statusClass}`} role="img" aria-label={`Status: ${event.status}`} />
       </div>
 
       <p className="text-base font-semibold text-text-primary mb-1 truncate">

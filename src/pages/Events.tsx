@@ -59,6 +59,7 @@ export default function Events() {
         <input
           type="text"
           placeholder="Search client or venue..."
+          aria-label="Search events by client or venue"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="!pl-11 !py-3 text-sm"
@@ -71,6 +72,7 @@ export default function Events() {
           <button
             key={key}
             onClick={() => setFilter(key)}
+            aria-pressed={filter === key}
             className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
               filter === key
                 ? 'bg-accent text-white shadow-sm'

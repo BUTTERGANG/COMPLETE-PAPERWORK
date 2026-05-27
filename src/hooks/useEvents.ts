@@ -32,11 +32,11 @@ export function useEvents() {
   };
 
   const addEventMutation = useMutation({
-    mutationFn: async ({ form, imageData }: { form: EventFormData; imageData?: string }) => {
+    mutationFn: async ({ form, images }: { form: EventFormData; images?: string[] }) => {
       if (!userId) throw new Error('Not authenticated');
       return fetchJson<Event>(`${API_BASE}/events`, {
         method: 'POST',
-        body: JSON.stringify({ ...form, paperwork_image_data: imageData ?? null }),
+        body: JSON.stringify({ ...form, paperwork_images: images ?? [] }),
       });
     },
     onSuccess: () => invalidateEvents(),
@@ -79,8 +79,8 @@ export function useEvents() {
     refetch: eventsQuery.refetch,
     findEvent,
     useEvent,
-    addEvent: (form: EventFormData, imageData?: string) =>
-      addEventMutation.mutateAsync({ form, imageData }).then((e) => e as Event),
+    addEvent: (form: EventFormData, images?: string[]) =>
+      addEventMutation.mutateAsync({ form, images }).then((e) => e as Event),
     updateEvent: (id: string, updates: Partial<EventFormData>) =>
       updateEventMutation.mutateAsync({ id, updates }).then((e) => e as Event),
     deleteEvent: (id: string) => deleteEventMutation.mutateAsync(id),

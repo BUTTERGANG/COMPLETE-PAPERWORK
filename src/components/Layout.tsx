@@ -54,7 +54,7 @@ export default function Layout() {
               key={to}
               to={to}
               end={to === '/'}
-              aria-label={label}
+              className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
             >
               {({ isActive }) => (
                 <>
