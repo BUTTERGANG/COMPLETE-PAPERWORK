@@ -1,31 +1,32 @@
 @import "tailwindcss";
 
 @theme {
-  --color-base: #0a0a0b;
-  --color-surface-1: #111113;
-  --color-surface-2: #19191d;
-  --color-surface-3: #222226;
-  --color-border: #2a2a30;
-  --color-border-subtle: #1e1e22;
+  --color-base: #0c0a09;
+  --color-surface-1: #16130f;
+  --color-surface-2: #211c16;
+  --color-surface-3: #2d251d;
+  --color-border: #38302a;
+  --color-border-subtle: #241f19;
 
-  --color-accent: #a855f7;
-  --color-accent-hover: #9333ea;
-  --color-accent-glow: rgba(168, 85, 247, 0.15);
-  --color-accent-glow-strong: rgba(168, 85, 247, 0.25);
+  --color-accent: #f59e0b;
+  --color-accent-hover: #ea580c;
+  --color-accent-glow: rgba(245, 158, 11, 0.16);
+  --color-accent-glow-strong: rgba(245, 158, 11, 0.30);
 
   --color-success: #22c55e;
   --color-success-dim: rgba(34, 197, 94, 0.12);
-  --color-warn: #f59e0b;
-  --color-warn-dim: rgba(245, 158, 11, 0.12);
+  --color-warn: #eab308;
+  --color-warn-dim: rgba(234, 179, 8, 0.12);
   --color-danger: #ef4444;
   --color-danger-dim: rgba(239, 68, 68, 0.12);
 
-  --color-text-primary: #f4f4f5;
-  --color-text-secondary: #a1a1aa;
-  --color-text-tertiary: #71717a;
-  --color-text-quaternary: #52525b;
+  --color-text-primary: #faf8f5;
+  --color-text-secondary: #b8afa4;
+  --color-text-tertiary: #8a7d6e;
+  --color-text-quaternary: #5f5447;
 
-  --color-violet-600: #7c3aed;
+  /* Gradient end-stop for the sunset accent (amber → orange) */
+  --color-violet-600: #f97316;
   --color-blue-400: #60a5fa;
 }
 
@@ -107,7 +108,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 }
 
 select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a7d6e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 40px;

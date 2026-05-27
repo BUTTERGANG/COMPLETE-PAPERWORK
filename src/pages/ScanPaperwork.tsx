@@ -11,22 +11,22 @@ export default function ScanPaperwork() {
   const navigate = useNavigate();
   const { addEvent } = useEvents();
   const [parsed, setParsed] = useState<ParsedEvent | null>(null);
-  const [imageData, setImageData] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [imageData, setImageData] = useState<string[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleParsed = (data: ParsedEvent, base64Data: string, preview: string) => {
+  const handleParsed = (data: ParsedEvent, base64Images: string[], previewUrls: string[]) => {
     setParsed(data);
-    setImageData(base64Data);
-    setPreviewUrl(preview);
+    setImageData(base64Images);
+    setPreviews(previewUrls);
   };
 
   const handleSave = async (form: EventFormData) => {
     setSaving(true);
     setError(null);
     try {
-      const event = await addEvent(form, imageData ?? undefined);
+      const event = await addEvent(form, imageData);
       if (event) navigate(`/events/${event.id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save event');
@@ -43,7 +43,7 @@ export default function ScanPaperwork() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {!parsed && (
-            <button onClick={() => navigate(-1)} className="btn-ghost !p-2 -ml-2">
+            <button onClick={() => navigate(-1)} className="btn-ghost !p-2 -ml-2" aria-label="Go back">
               <ChevronLeftIcon size={20} />
             </button>
           )}
@@ -53,8 +53,8 @@ export default function ScanPaperwork() {
           <button
             onClick={() => {
               setParsed(null);
-              setImageData(null);
-              setPreviewUrl(null);
+              setImageData([]);
+              setPreviews([]);
             }}
             className="text-sm font-medium text-text-tertiary hover:text-text-secondary"
           >
@@ -67,13 +67,18 @@ export default function ScanPaperwork() {
         <PaperworkScanner onParsed={handleParsed} />
       ) : (
         <div className="space-y-4 animate-slide-up">
-          {previewUrl && (
-            <div className="card-elevated p-2 overflow-hidden">
-              <img
-                src={previewUrl}
-                alt="Paperwork"
-                className="w-full h-auto max-h-44 object-contain rounded-xl"
-              />
+          {previews.length > 0 && (
+            <div className="card-elevated p-2.5">
+              <div className="grid grid-cols-4 gap-2">
+                {previews.map((url, i) => (
+                  <img
+                    key={i}
+                    src={url}
+                    alt={`Paperwork page ${i + 1}`}
+                    className="w-full aspect-square object-cover rounded-lg border border-border-subtle"
+                  />
+                ))}
+              </div>
             </div>
           )}
 

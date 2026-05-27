@@ -19,19 +19,38 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8080',
   'http://localhost:5173',
 ];
+// Replit injects the live domain(s) at runtime — trust them explicitly.
+if (process.env.REPLIT_DEV_DOMAIN) ALLOWED_ORIGINS.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+for (const d of (process.env.REPLIT_DOMAINS ?? '').split(',').map((s) => s.trim()).filter(Boolean)) {
+  ALLOWED_ORIGINS.push(`https://${d}`);
+}
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, Replit proxy)
     if (!origin) return callback(null, true);
     if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-    // In Replit production, the proxy strips origin — allow it
-    if (process.env.REPLIT_ENVIRONMENT) return callback(null, true);
+    // Trust any Replit-hosted domain (dev preview or deployment)
+    try {
+      const host = new URL(origin).hostname;
+      if (host.endsWith('.replit.dev') || host.endsWith('.repl.co') || host.endsWith('.replit.app')) {
+        return callback(null, true);
+      }
+    } catch { /* malformed origin — fall through to rejection */ }
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
 }));
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '25mb' }));
+
+// Return JSON (not HTML) when an upload exceeds the body-size limit
+app.use((err: Error & { type?: string }, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Upload too large. Use fewer images or smaller photos.' });
+  }
+  next(err);
+});
 
 // Extend Express Request type to include user identity
 declare global {
@@ -88,7 +107,7 @@ const ALLOWED_EVENT_FIELDS = [
   'event_date', 'event_type', 'venue_name', 'venue_address',
   'client_name', 'client_phone', 'client_email', 'start_time', 'end_time',
   'base_pay', 'compliance_bonus', 'mileage_miles', 'mileage_rate',
-  'notes', 'raw_ai_summary', 'paperwork_image_data', 'status',
+  'notes', 'raw_ai_summary', 'paperwork_images', 'status',
 ] as const;
 
 function pickFields(body: Record<string, unknown>, allowed: readonly string[]) {
@@ -112,17 +131,24 @@ app.get('/api/auth/user', (req, res) => {
 // Parse paperwork with AI (server-side, keeps API key secret)
 app.post('/api/parse-paperwork', async (req, res) => {
   try {
-    const { base64Image } = req.body as { base64Image?: string };
-    if (!base64Image) {
-      return res.status(400).json({ error: 'base64Image is required' });
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: 'AI parsing is not configured — the ANTHROPIC_API_KEY secret is not set.' });
     }
 
-    // Detect media type from magic bytes
-    let mediaType: 'image/jpeg' | 'image/png' | 'image/webp' = 'image/jpeg';
-    if (base64Image.startsWith('iVBOR')) mediaType = 'image/png';
-    else if (base64Image.startsWith('UklGR')) mediaType = 'image/webp';
+    const body = req.body as { base64Images?: string[]; base64Image?: string };
+    // Accept an array of images (multi-page paperwork) or a single image.
+    const images = body.base64Images ?? (body.base64Image ? [body.base64Image] : []);
+    if (images.length === 0) {
+      return res.status(400).json({ error: 'base64Images is required' });
+    }
 
-    const PROMPT = `You are parsing a DJ event worksheet or run-of-show document. Extract ALL available information and return ONLY a JSON object with these fields:
+    const detectMediaType = (b64: string): 'image/jpeg' | 'image/png' | 'image/webp' => {
+      if (b64.startsWith('iVBOR')) return 'image/png';
+      if (b64.startsWith('UklGR')) return 'image/webp';
+      return 'image/jpeg';
+    };
+
+    const PROMPT = `You are parsing a DJ event worksheet or run-of-show document. It may span MULTIPLE images/pages — treat all of them as ONE document and merge the information. Extract ALL available information and return ONLY a JSON object with these fields:
 
 {
   "event_date": "YYYY-MM-DD or null",
@@ -170,13 +196,18 @@ app.post('/api/parse-paperwork', async (req, res) => {
 
 Return ONLY the JSON object, no markdown.`;
 
+    const imageBlocks = images.map((data) => ({
+      type: 'image' as const,
+      source: { type: 'base64' as const, media_type: detectMediaType(data), data },
+    }));
+
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4000,
       messages: [{
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Image } },
+          ...imageBlocks,
           { type: 'text', text: PROMPT },
         ],
       }],
@@ -206,7 +237,7 @@ app.get('/api/events', async (req, res) => {
     const result = await db.query.events.findMany({
       where: eq(events.user_id, req.userId),
       orderBy: (events, { desc }) => [desc(events.event_date)],
-      columns: { paperwork_image_data: false },
+      columns: { paperwork_images: false },
     });
     res.json(result);
   } catch (e) {

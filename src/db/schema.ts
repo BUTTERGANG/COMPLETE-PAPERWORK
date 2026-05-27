@@ -1,4 +1,4 @@
-import { pgTable, text, numeric, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, numeric, timestamp, pgEnum, index, jsonb } from 'drizzle-orm/pg-core';
 
 export const eventStatusEnum = pgEnum('event_status', ['upcoming', 'completed', 'cancelled']);
 
@@ -21,7 +21,7 @@ export const events = pgTable('events', {
   total_pay: numeric('total_pay', { precision: 10, scale: 2, mode: 'number' }).notNull().default(0),
   notes: text('notes'),
   raw_ai_summary: text('raw_ai_summary'),
-  paperwork_image_data: text('paperwork_image_data'),
+  paperwork_images: jsonb('paperwork_images').$type<string[]>().notNull().default([]),
   status: eventStatusEnum('status').notNull().default('upcoming'),
   created_at: timestamp('created_at').notNull().defaultNow(),
   updated_at: timestamp('updated_at').notNull().defaultNow(),

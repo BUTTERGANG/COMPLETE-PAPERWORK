@@ -17,13 +17,13 @@ export interface Event {
   total_pay: number;
   notes: string | null;
   raw_ai_summary: string | null;
-  paperwork_image_data: string | null;
+  paperwork_images: string[];
   status: 'upcoming' | 'completed' | 'cancelled';
   created_at: string;
   updated_at: string;
 }
 
-export type EventFormData = Omit<Event, 'id' | 'user_id' | 'total_pay' | 'created_at' | 'updated_at'>;
+export type EventFormData = Omit<Event, 'id' | 'user_id' | 'total_pay' | 'created_at' | 'updated_at' | 'paperwork_images'>;
 
 export interface TimelineEntry {
   time: string;

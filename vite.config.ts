@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
   server: {
     host: '0.0.0.0',
-    port: 8080,
+    port: 5000,
     strictPort: true,
     allowedHosts: true,
     hmr: {
@@ -29,8 +29,8 @@ export default defineConfig({
         name: 'DJ Ops',
         short_name: 'DJ Ops',
         description: 'DJ event management, paperwork scanning, and pay tracking',
-        theme_color: '#0f0f0f',
-        background_color: '#0f0f0f',
+        theme_color: '#0c0a09',
+        background_color: '#0c0a09',
         display: 'standalone',
         orientation: 'portrait',
         icons: [

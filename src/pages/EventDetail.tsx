@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
@@ -176,8 +176,9 @@ export default function EventDetail() {
   );
   const event = cachedEvent ?? fetchedEvent ?? null;
 
-  // Image data is stored directly as base64 in the event record — no signed URL needed
-  const imageData = event?.paperwork_image_data ?? null;
+  // Images are stored directly as base64 in the event record — no signed URL needed
+  const images = event?.paperwork_images ?? [];
+  const toDataUrl = (img: string) => (img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`);
 
   const handleStatusChange = async (status: Event['status']) => {
     if (!event || !id) return;
@@ -202,6 +203,13 @@ export default function EventDetail() {
   };
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!showDeleteConfirm) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setShowDeleteConfirm(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showDeleteConfirm]);
 
   const handleDelete = async () => {
     if (!event || !id) return;
@@ -253,7 +261,7 @@ export default function EventDetail() {
     <div className="space-y-4 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate(-1)} className="btn-ghost !p-2 -ml-2">
+        <button onClick={() => navigate(-1)} className="btn-ghost !p-2 -ml-2" aria-label="Go back">
           <ChevronLeftIcon size={20} />
         </button>
         <div className="flex gap-1">
@@ -283,6 +291,8 @@ export default function EventDetail() {
               key={s}
               onClick={() => handleStatusChange(s)}
               disabled={saving}
+              aria-pressed={event.status === s}
+              aria-label={`Mark as ${s}`}
               className={`badge flex-1 py-2.5 !text-xs justify-center transition-opacity ${
                 event.status === s ? '' : 'opacity-40'
               } ${s === 'upcoming' ? 'badge-upcoming' : s === 'completed' ? 'badge-completed' : 'badge-cancelled'}`}
@@ -493,21 +503,25 @@ export default function EventDetail() {
       <PayBreakdown event={event} />
 
       {/* Paperwork — stored as base64 directly in the event record */}
-      {imageData && (
+      {images.length > 0 && (
         <div className="card-elevated">
           <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
-            Paperwork
+            Paperwork {images.length > 1 && `· ${images.length} pages`}
           </h3>
-          <div className="rounded-xl overflow-hidden border border-border-subtle">
-            <img
-              src={imageData.startsWith('data:') ? imageData : `data:image/jpeg;base64,${imageData}`}
-              alt="Paperwork"
-              className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
-              onClick={() => {
-                const url = imageData.startsWith('data:') ? imageData : `data:image/jpeg;base64,${imageData}`;
-                window.open(url, '_blank');
-              }}
-            />
+          <div className={images.length === 1 ? '' : 'grid grid-cols-2 gap-2.5'}>
+            {images.map((img, i) => {
+              const url = toDataUrl(img);
+              return (
+                <div key={i} className="rounded-xl overflow-hidden border border-border-subtle">
+                  <img
+                    src={url}
+                    alt={`Paperwork page ${i + 1}`}
+                    className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => window.open(url, '_blank')}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -530,8 +544,14 @@ export default function EventDetail() {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="card-elevated max-w-sm mx-5 p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-text-primary">Delete Event?</h3>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            className="card-elevated max-w-sm mx-5 p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="delete-dialog-title" className="text-lg font-bold text-text-primary">Delete Event?</h3>
             <p className="text-sm text-text-secondary">This action cannot be undone. The event and all its data will be permanently removed.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowDeleteConfirm(false)} className="btn-secondary flex-1">Cancel</button>
