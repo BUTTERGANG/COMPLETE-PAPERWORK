@@ -1,24 +1,23 @@
 import { useState } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuthStore } from '../store/authStore';
 import { HeadphonesIcon, AlertCircleIcon } from '../components/icons/Icons';
 
 export default function Login() {
-  const { signIn, signUp } = useAuth();
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      if (isSignUp) {
-        await signUp(email, password);
-      } else {
-        await signIn(email, password);
+      // Replit Auth handles authentication externally.
+      // Simply re-initializing the auth store will detect the Replit session.
+      const { init } = useAuthStore.getState();
+      await init();
+      const { userId } = useAuthStore.getState();
+      if (!userId) {
+        throw new Error('Authentication failed. Please ensure you are signed in to Replit.');
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
@@ -44,35 +43,11 @@ export default function Login() {
           <p className="text-sm text-text-tertiary mt-1.5">Event management made simple</p>
         </div>
 
-        {/* Form */}
+        {/* Replit Auth — user signs in via Replit's identity provider */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="block text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              minLength={6}
-            />
-          </div>
+          <p className="text-center text-sm text-text-tertiary">
+            Sign in with your Replit account to manage your DJ events.
+          </p>
 
           {error && (
             <div className="flex items-start gap-2.5 p-3 rounded-xl bg-danger/10 border border-danger/20">
@@ -82,29 +57,17 @@ export default function Login() {
           )}
 
           <button
-            type="submit"
+            onClick={handleLogin}
             disabled={loading}
             className="btn-primary w-full mt-2"
           >
             {loading ? (
               <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : isSignUp ? (
-              'Create Account'
             ) : (
-              'Sign In'
+              'Sign in with Replit'
             )}
           </button>
         </form>
-
-        <p className="text-center text-text-tertiary mt-8 text-sm">
-          {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-          <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-accent font-semibold hover:underline"
-          >
-            {isSignUp ? 'Sign In' : 'Sign Up'}
-          </button>
-        </p>
       </div>
     </div>
   );

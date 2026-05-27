@@ -17,7 +17,7 @@ export interface Event {
   total_pay: number;
   notes: string | null;
   raw_ai_summary: string | null;
-  paperwork_image_url: string | null;
+  paperwork_image_data: string | null;
   status: 'upcoming' | 'completed' | 'cancelled';
   created_at: string;
   updated_at: string;

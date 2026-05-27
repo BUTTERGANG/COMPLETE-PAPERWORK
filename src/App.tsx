@@ -35,7 +35,7 @@ function PageSuspense({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-  const { user, loading, init } = useAuth();
+  const { userId, loading, init } = useAuth();
 
   useEffect(() => {
     init();
@@ -49,7 +49,7 @@ function App() {
     );
   }
 
-  if (!user) {
+  if (!userId) {
     return <Login />;
   }
 

@@ -26,7 +26,7 @@ const defaultEvent: EventFormData = {
   mileage_rate: DEFAULT_MILEAGE_RATE,
   notes: '',
   raw_ai_summary: null,
-  paperwork_image_url: null,
+  paperwork_image_data: null,
   status: 'upcoming',
 };
 
@@ -65,7 +65,7 @@ export default function EventForm({
   const complianceBonus = watch('compliance_bonus');
 
   const processSubmit = (data: EventFormData) => {
-    // Coerce empty string numbers to 0 to avoid Supabase type issues
+    // Coerce empty string numbers to 0 to avoid NaN in numeric DB columns
     const cleaned: EventFormData = {
       ...data,
       base_pay: Number.isNaN(data.base_pay) ? 0 : data.base_pay,

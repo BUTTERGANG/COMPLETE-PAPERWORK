@@ -1,59 +1,37 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
-import type { User } from '@supabase/supabase-js';
 
 interface AuthState {
-  user: User | null;
+  userId: string | null;
+  userName: string | null;
   loading: boolean;
   initialized: boolean;
-  init: () => Promise<(() => void) | undefined>;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  init: () => Promise<void>;
+  signOut: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => {
-  let authListenerCleanup: (() => void) | null = null;
+export const useAuthStore = create<AuthState>((set) => ({
+  userId: null,
+  userName: null,
+  loading: true,
+  initialized: false,
 
-  return {
-    user: null,
-    loading: true,
-    initialized: false,
-
-    init: async () => {
-      if (get().initialized) return authListenerCleanup ?? undefined;
-
-      const { data: { session } } = await supabase.auth.getSession();
-      set({ user: session?.user ?? null, loading: false, initialized: true });
-
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        set({ user: session?.user ?? null });
-      });
-
-      authListenerCleanup = () => {
-        subscription.unsubscribe();
-      };
-
-      return authListenerCleanup;
-    },
-
-  signIn: async (email, password) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-  },
-
-  signUp: async (email, password) => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) throw error;
-  },
-
-    signOut: async () => {
-      await supabase.auth.signOut();
-      if (authListenerCleanup) {
-        authListenerCleanup();
-        authListenerCleanup = null;
+  init: async () => {
+    try {
+      const resp = await fetch('/api/auth/user');
+      if (resp.ok) {
+        const data = await resp.json();
+        set({ userId: data.userId, userName: data.userName, loading: false, initialized: true });
+        return;
       }
-      set({ user: null, initialized: false });
-    },
-  };
-});
+    } catch {
+      // Fallback: use a default local user-id for dev
+      console.warn('[auth] Replit identity not available, using local dev mode');
+    }
+    // Dev mode fallback
+    set({ userId: 'dev-user', userName: 'Dev User', loading: false, initialized: true });
+  },
+
+  signOut: () => {
+    set({ userId: null, userName: null, initialized: false });
+  },
+}));

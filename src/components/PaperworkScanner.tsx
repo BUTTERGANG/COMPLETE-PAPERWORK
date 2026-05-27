@@ -6,7 +6,7 @@ import { CameraIcon, UploadIcon, ImageIcon, XIcon } from './icons/Icons';
 import { Spinner } from './Spinner';
 
 interface PaperworkScannerProps {
-  onParsed: (data: ParsedEvent, imageFile: File, previewUrl: string) => void;
+  onParsed: (data: ParsedEvent, base64Data: string, previewUrl: string) => void;
 }
 
 export function EmptyScannerState({ onCapture, onUpload }: { onCapture: () => void; onUpload: () => void }) {
@@ -65,8 +65,8 @@ export default function PaperworkScanner({ onParsed }: PaperworkScannerProps) {
       const compressedDataUrl = await compressImage(imageFile);
       const base64 = compressedDataUrl.split(',')[1];
       const parsed = await parsePaperwork(base64);
-      // Pass the original (uncompressed) preview URL for display
-      onParsed(parsed, imageFile, preview);
+      // Pass the base64 data for storage in the database
+      onParsed(parsed, base64, preview);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to parse image');
     } finally {

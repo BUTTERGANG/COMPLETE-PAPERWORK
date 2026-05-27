@@ -11,14 +11,14 @@ export default function ScanPaperwork() {
   const navigate = useNavigate();
   const { addEvent } = useEvents();
   const [parsed, setParsed] = useState<ParsedEvent | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageData, setImageData] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleParsed = (data: ParsedEvent, file: File, preview: string) => {
+  const handleParsed = (data: ParsedEvent, base64Data: string, preview: string) => {
     setParsed(data);
-    setImageFile(file);
+    setImageData(base64Data);
     setPreviewUrl(preview);
   };
 
@@ -26,7 +26,7 @@ export default function ScanPaperwork() {
     setSaving(true);
     setError(null);
     try {
-      const event = await addEvent(form, imageFile || undefined);
+      const event = await addEvent(form, imageData ?? undefined);
       if (event) navigate(`/events/${event.id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save event');
@@ -53,7 +53,7 @@ export default function ScanPaperwork() {
           <button
             onClick={() => {
               setParsed(null);
-              setImageFile(null);
+              setImageData(null);
               setPreviewUrl(null);
             }}
             className="text-sm font-medium text-text-tertiary hover:text-text-secondary"

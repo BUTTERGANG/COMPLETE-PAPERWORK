@@ -17,7 +17,7 @@ const defaultEvent: EventFormData = {
   mileage_rate: DEFAULT_MILEAGE_RATE,
   notes: '',
   raw_ai_summary: null,
-  paperwork_image_url: null,
+  paperwork_image_data: null,
   status: 'upcoming',
 };
 

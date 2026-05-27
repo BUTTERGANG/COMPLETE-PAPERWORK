@@ -1,12 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
-import { parseLocalDate } from '../lib/dateUtils';
 import { useAuthStore } from '../store/authStore';
 import { useEvents } from '../hooks/useEvents';
 import type { Event } from '../types/event';
+import { parseLocalDate } from '../lib/dateUtils';
 import PayBreakdown from '../components/PayBreakdown';
 import { Spinner } from '../components/Spinner';
 import {
@@ -165,7 +164,7 @@ function parseMusicSection(notes: string | null): {
 export default function EventDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const user = useAuthStore((s) => s.user);
+  const userId = useAuthStore((s) => s.userId);
   const queryClient = useQueryClient();
   const { findEvent, useEvent, updateEvent, deleteEvent } = useEvents();
   const [saving, setSaving] = useState(false);
@@ -177,17 +176,8 @@ export default function EventDetail() {
   );
   const event = cachedEvent ?? fetchedEvent ?? null;
 
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!event?.paperwork_image_url) return;
-    supabase.storage.from('paperwork').createSignedUrl(event.paperwork_image_url, 60 * 60)
-      .then(({ data, error }) => {
-        if (!error && data) setSignedUrl(data.signedUrl);
-      });
-  }, [event?.paperwork_image_url]);
-
-  const imageUrl = signedUrl;
+  // Image data is stored directly as base64 in the event record — no signed URL needed
+  const imageData = event?.paperwork_image_data ?? null;
 
   const handleStatusChange = async (status: Event['status']) => {
     if (!event || !id) return;
@@ -196,7 +186,7 @@ export default function EventDetail() {
     try {
       const updated = await updateEvent(id, { status });
       if (currentId === requestIdRef.current) {
-        queryClient.setQueryData(['events', user?.id], (old: Event[] | undefined) =>
+        queryClient.setQueryData(['events', userId], (old: Event[] | undefined) =>
           old?.map((e) => (e.id === id ? updated : e)) ?? []
         );
       }
@@ -217,7 +207,7 @@ export default function EventDetail() {
     navigate('/events');
   };
 
-  const isListLoading = !queryClient.getQueryData(['events', user?.id]);
+  const isListLoading = !queryClient.getQueryData(['events', userId]);
   const isLoading = (isListLoading && !event) || isFetching;
 
   if (isLoading) {
@@ -494,18 +484,21 @@ export default function EventDetail() {
       {/* Pay */}
       <PayBreakdown event={event} />
 
-      {/* Paperwork */}
-      {imageUrl && (
+      {/* Paperwork — stored as base64 directly in the event record */}
+      {imageData && (
         <div className="card-elevated">
           <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
             Paperwork
           </h3>
           <div className="rounded-xl overflow-hidden border border-border-subtle">
             <img
-              src={imageUrl}
+              src={imageData.startsWith('data:') ? imageData : `data:image/jpeg;base64,${imageData}`}
               alt="Paperwork"
               className="w-full h-auto cursor-pointer hover:opacity-90 transition-opacity"
-              onClick={() => window.open(imageUrl, '_blank')}
+              onClick={() => {
+                const url = imageData.startsWith('data:') ? imageData : `data:image/jpeg;base64,${imageData}`;
+                window.open(url, '_blank');
+              }}
             />
           </div>
         </div>
