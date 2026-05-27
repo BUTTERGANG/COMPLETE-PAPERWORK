@@ -1,3 +1,5 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -7,8 +9,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import * as schema from '../src/db/schema';
 
 const anthropic = new Anthropic({
-  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
 const { Pool } = pg;
@@ -63,8 +64,14 @@ declare global {
   }
 }
 
+const connectionString = process.env.NEONDB ?? process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('FATAL: NEONDB or DATABASE_URL environment variable must be set');
+  process.exit(1);
+}
+
 const pool = new Pool({
-  connectionString: process.env.NEONDB ?? process.env.DATABASE_URL,
+  connectionString,
   max: 5,
   connectionTimeoutMillis: 10_000,
   idleTimeoutMillis: 30_000,
@@ -76,7 +83,11 @@ const { events } = schema;
 // Graceful shutdown
 const shutdown = async () => {
   console.log('Shutting down...');
-  await pool.end();
+  try {
+    await pool.end();
+  } catch (e) {
+    console.error('Error closing pool:', e);
+  }
   process.exit(0);
 };
 process.on('SIGTERM', shutdown);
@@ -132,8 +143,8 @@ app.get('/api/auth/user', (req, res) => {
 // Parse paperwork with AI (server-side, keeps API key secret)
 app.post('/api/parse-paperwork', async (req, res) => {
   try {
-    if (!process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY) {
-      return res.status(503).json({ error: 'AI parsing is not configured — the Anthropic AI integration is not connected.' });
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: 'AI parsing is not configured — the Anthropic API key is not set.' });
     }
 
     const body = req.body as { base64Images?: string[]; base64Image?: string };
@@ -349,16 +360,13 @@ app.delete('/api/events/:id', async (req, res) => {
 });
 
 // Serve built client in production
-import path from 'path';
-import { fileURLToPath } from 'url';
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distPath = path.join(__dirname, '../dist');
 
 app.use(express.static(distPath));
-app.get('/{*path}', (_req, res) => {
+app.get('/*', (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'), (err) => {
-    if (err) res.status(200).send('Dev mode: frontend served by Vite on :8080');
+    if (err) res.status(404).send('Not found');
   });
 });
 

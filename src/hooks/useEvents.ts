@@ -67,7 +67,10 @@ export function useEvents() {
   function useEvent(id: string | undefined) {
     return useQuery({
       queryKey: ['event', id],
-      queryFn: () => fetchJson<Event>(`${API_BASE}/events/${id}`),
+      queryFn: () => {
+        if (!id) throw new Error('Event ID is required');
+        return fetchJson<Event>(`${API_BASE}/events/${id}`);
+      },
       enabled: !!id,
     });
   }
