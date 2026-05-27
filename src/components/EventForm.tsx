@@ -65,11 +65,12 @@ export default function EventForm({
   const complianceBonus = watch('compliance_bonus');
 
   const processSubmit = (data: EventFormData) => {
-    // Coerce empty string numbers to 0 to avoid NaN in numeric DB columns
     const cleaned: EventFormData = {
       ...data,
       base_pay: Number.isNaN(data.base_pay) ? 0 : data.base_pay,
+      compliance_bonus: Number.isNaN(data.compliance_bonus) ? 0 : data.compliance_bonus,
       mileage_miles: Number.isNaN(data.mileage_miles) ? 0 : data.mileage_miles,
+      mileage_rate: Number.isNaN(data.mileage_rate) ? 0 : data.mileage_rate,
     };
     onSubmit(cleaned);
   };

@@ -27,6 +27,10 @@ export function useEvents() {
     enabled: !!userId,
   });
 
+  const invalidateEvents = () => {
+    queryClient.invalidateQueries({ queryKey: ['events', userId] });
+  };
+
   const addEventMutation = useMutation({
     mutationFn: async ({ form, imageData }: { form: EventFormData; imageData?: string }) => {
       if (!userId) throw new Error('Not authenticated');
@@ -35,13 +39,7 @@ export function useEvents() {
         body: JSON.stringify({ ...form, paperwork_image_data: imageData ?? null }),
       });
     },
-    onSuccess: (newEvent) => {
-      if (newEvent) {
-        queryClient.setQueryData(['events', userId], (old: Event[] | undefined) => {
-          return [newEvent, ...(old ?? [])];
-        });
-      }
-    },
+    onSuccess: () => invalidateEvents(),
   });
 
   const updateEventMutation = useMutation({
@@ -51,33 +49,21 @@ export function useEvents() {
         body: JSON.stringify(updates),
       });
     },
-    onSuccess: (updatedEvent) => {
-      if (updatedEvent) {
-        queryClient.setQueryData(['events', userId], (old: Event[] | undefined) => {
-          return old?.map((e) => (e.id === updatedEvent.id ? updatedEvent : e)) ?? [];
-        });
-      }
-    },
+    onSuccess: () => invalidateEvents(),
   });
 
   const deleteEventMutation = useMutation({
     mutationFn: async (id: string) => {
       return fetchJson<void>(`${API_BASE}/events/${id}`, { method: 'DELETE' });
     },
-    onSuccess: (_data, deletedId) => {
-      queryClient.setQueryData(['events', userId], (old: Event[] | undefined) => {
-        return old?.filter((e) => e.id !== deletedId) ?? [];
-      });
-    },
+    onSuccess: () => invalidateEvents(),
   });
 
-  // Helper to find a single event from the cached list (no extra network request)
   function findEvent(id: string): Event | null {
     const events = queryClient.getQueryData<Event[]>(['events', userId]);
     return events?.find((e) => e.id === id) ?? null;
   }
 
-  // Fallback: fetch a single event directly from the API when not in cache
   function useEvent(id: string | undefined) {
     return useQuery({
       queryKey: ['event', id],

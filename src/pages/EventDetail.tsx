@@ -201,8 +201,15 @@ export default function EventDetail() {
     }
   };
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const handleDelete = async () => {
-    if (!event || !id || !confirm('Delete this event?')) return;
+    if (!event || !id) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    setShowDeleteConfirm(false);
     await deleteEvent(id);
     navigate('/events');
   };
@@ -516,6 +523,20 @@ export default function EventDetail() {
           <p className="text-sm text-text-secondary leading-relaxed">
             {event.raw_ai_summary}
           </p>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="card-elevated max-w-sm mx-5 p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-text-primary">Delete Event?</h3>
+            <p className="text-sm text-text-secondary">This action cannot be undone. The event and all its data will be permanently removed.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowDeleteConfirm(false)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={confirmDelete} className="btn-primary flex-1 bg-danger hover:bg-danger/90">Delete</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -44,7 +44,7 @@ export default function Login() {
         </div>
 
         {/* Replit Auth — user signs in via Replit's identity provider */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-4">
           <p className="text-center text-sm text-text-tertiary">
             Sign in with your Replit account to manage your DJ events.
           </p>

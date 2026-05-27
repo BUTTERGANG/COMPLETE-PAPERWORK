@@ -44,7 +44,7 @@ function App() {
   if (loading) {
     return (
       <div className="min-h-screen bg-base flex items-center justify-center">
-        <div className="animate-spin text-4xl">🎧</div>
+        <div className="animate-spin text-4xl" role="status" aria-label="Loading">🎧</div>
       </div>
     );
   }

@@ -54,7 +54,13 @@ export default defineConfig({
             return 'query';
           }
           if (id.includes('node_modules/date-fns')) {
-            return 'ui';
+            return 'date-fns';
+          }
+          if (id.includes('node_modules/react-hook-form')) {
+            return 'forms';
+          }
+          if (id.includes('node_modules/zustand')) {
+            return 'state';
           }
         },
       },

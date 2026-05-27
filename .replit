@@ -1,6 +1,6 @@
 run = "npm install && npm run dev"
 language = "nodejs"
-modules = ["python-3.11", "nodejs-20"]
+modules = ["nodejs-20"]
 
 [packager]
 language = "nodejs"
@@ -16,10 +16,6 @@ channel = "stable-25_05"
 [[ports]]
 localPort = 8080
 externalPort = 80
-
-[[ports]]
-localPort = 3000
-externalPort = 3000
 
 [agent]
 expertMode = true
