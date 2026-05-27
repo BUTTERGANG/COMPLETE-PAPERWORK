@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authStore';
 import { useEvents } from '../hooks/useEvents';
-import type { Event } from '../types/event';
+import type { Event, MusicSelections } from '../types/event';
 import { parseLocalDate } from '../lib/dateUtils';
 import PayBreakdown from '../components/PayBreakdown';
 import { Spinner } from '../components/Spinner';
@@ -45,120 +45,45 @@ function EventInfoRow({
   );
 }
 
-/** Extract lines from a labeled section in notes (e.g. "Timeline:\n...") */
-function extractSection(notes: string | null, header: string): string[] {
-  if (!notes) return [];
-  const idx = notes.indexOf(header);
-  if (idx === -1) return [];
-  const afterHeader = notes.slice(idx + header.length).trim();
-  const nextSection = afterHeader.search(/\n[A-Z][\w\s]+:/);
-  const raw = nextSection === -1 ? afterHeader : afterHeader.slice(0, nextSection);
-  return raw.split('\n').map((l) => l.trim()).filter(Boolean);
-}
+const MUSIC_LABELS: [keyof MusicSelections, string][] = [
+  ['background_music', 'Background Music'],
+  ['escorting_mothers', 'Escorting Mothers'],
+  ['pre_processional', 'Pre-Processional / Wedding Party'],
+  ['ceremony_processional', 'Processional / Grand Entrance'],
+  ['unity_ceremony', 'Unity Candle / Sand Ceremony'],
+  ['ceremony_recessional', 'Recessional'],
+  ['ceremony_interlude', 'Ceremony Interlude'],
+  ['grand_entrance', 'Reception Entrance'],
+  ['first_dance', 'First Dance'],
+  ['father_daughter_dance', 'Father/Daughter Dance'],
+  ['mother_son_dance', 'Mother/Son Dance'],
+  ['parents_dance', 'Parents Dance'],
+  ['wedding_party_dance', 'Wedding Party Dance'],
+  ['other_dedication', 'Other Dedication Dance'],
+  ['cake_cutting', 'Cake Cutting'],
+  ['bouquet_toss', 'Bouquet Toss'],
+  ['garter_toss', 'Garter Toss'],
+  ['last_dance', 'Last Dance'],
+  ['send_off_exit', 'Send Off / Exit'],
+];
 
-/** Extract plain text from a labeled section */
-function extractSectionText(notes: string | null, header: string): string {
-  if (!notes) return '';
-  const lines = extractSection(notes, header);
-  return lines.join('\n');
-}
-
-/** Get the "base" notes before any labeled section */
-function getBaseNotes(notes: string | null): string {
-  if (!notes) return '';
-  const firstSection = notes.search(/\n[A-Z][\w\s]+:/);
-  if (firstSection === -1) return notes.trim();
-  const base = notes.slice(0, firstSection).trim();
-  return base.split('\n').filter((l) =>
-    !l.startsWith('Load-in:') &&
-    !l.startsWith('Secondary contact:') &&
-    !l.startsWith('Guest count:') &&
-    !l.startsWith('Pay type:')
-  ).join('\n');
-}
-
-/** Parse the Couple section */
-function parseCoupleSection(notes: string | null): { bride: string; groom: string } | null {
-  if (!notes?.includes('Couple:')) return null;
-  const lines = extractSection(notes, 'Couple:');
-  let bride = '';
-  let groom = '';
-  for (const line of lines) {
-    if (line.startsWith('Bride:')) bride = line.replace('Bride:', '').trim();
-    if (line.startsWith('Groom:')) groom = line.replace('Groom:', '').trim();
-  }
-  return bride || groom ? { bride, groom } : null;
-}
-
-/** Parse the Venue Info section */
-function parseVenueSection(notes: string | null): { phone: string; contact: string; notes: string } | null {
-  if (!notes?.includes('Venue Info:')) return null;
-  const lines = extractSection(notes, 'Venue Info:');
-  let phone = '';
-  let contact = '';
-  let venueNotes = '';
-  for (const line of lines) {
-    if (line.startsWith('Venue phone:')) phone = line.replace('Venue phone:', '').trim();
-    if (line.startsWith('Venue contact:')) contact = line.replace('Venue contact:', '').trim();
-    if (line.startsWith('Venue notes:')) venueNotes = line.replace('Venue notes:', '').trim();
-  }
-  return phone || contact || venueNotes ? { phone, contact, notes: venueNotes } : null;
-}
-
-/** Parse the Music Selections section into structured sub-sections for rich display */
-function parseMusicSection(notes: string | null): {
-  songs: { label: string; song: string }[];
-  mustPlay: string[];
-  doNotPlay: string[];
-  preferences: string;
-} | null {
-  if (!notes?.includes('Music Selections:')) return null;
-
-  const lines = extractSection(notes, 'Music Selections:');
-  if (lines.length === 0) return null;
-
+function getMusicSongs(music: MusicSelections): { label: string; song: string }[] {
   const songs: { label: string; song: string }[] = [];
-  const mustPlay: string[] = [];
-  const doNotPlay: string[] = [];
-  let preferences = '';
-
-  let currentList: 'must' | 'must_not' | null = null;
-
-  for (const line of lines) {
-    if (line.startsWith('Music Preferences:')) {
-      preferences = line.replace('Music Preferences:', '').trim();
-      currentList = null;
-      continue;
-    }
-    if (line === 'Must Play:') {
-      currentList = 'must';
-      continue;
-    }
-    if (line === 'Do Not Play:') {
-      currentList = 'must_not';
-      continue;
-    }
-    if (currentList === 'must') {
-      const cleaned = line.replace(/^[•\-\s]+/, '');
-      if (cleaned) mustPlay.push(cleaned);
-      continue;
-    }
-    if (currentList === 'must_not') {
-      const cleaned = line.replace(/^[✕\-\s]+/, '');
-      if (cleaned) doNotPlay.push(cleaned);
-      continue;
-    }
-
-    // Label: Value pattern (e.g. "First Dance: Thinking Out Loud – Ed Sheeran")
-    const colonIdx = line.indexOf(':');
-    if (colonIdx > 0) {
-      const label = line.slice(0, colonIdx).trim();
-      const song = line.slice(colonIdx + 1).trim();
-      if (song) songs.push({ label, song });
-    }
+  for (const [key, label] of MUSIC_LABELS) {
+    const val = music[key];
+    if (val && typeof val === 'string') songs.push({ label, song: val });
   }
+  return songs;
+}
 
-  return { songs, mustPlay, doNotPlay, preferences };
+function hasMusicContent(music: MusicSelections | null): music is MusicSelections {
+  if (!music) return false;
+  return (
+    getMusicSongs(music).length > 0 ||
+    (music.must_play?.length ?? 0) > 0 ||
+    (music.do_not_play?.length ?? 0) > 0 ||
+    !!music.music_preferences
+  );
 }
 
 export default function EventDetail() {
@@ -245,17 +170,21 @@ export default function EventDetail() {
     );
   }
 
-  const notes = event.notes || '';
-  const hasCouple = notes.includes('Couple:');
-  const hasVenueInfo = notes.includes('Venue Info:');
-  const hasTimeline = notes.includes('Timeline:');
-  const hasMusic = notes.includes('Music Selections:');
-  const hasSpecialInstructions = notes.includes('Special instructions:');
-  const hasLabeledNotes = notes.includes('Notes:');
-  const baseNotes = getBaseNotes(notes);
-  const coupleData = parseCoupleSection(notes);
-  const venueData = parseVenueSection(notes);
-  const musicData = parseMusicSection(notes);
+  const hasCouple = !!(event.bride_name || event.groom_name || event.bride_parents || event.groom_parents || event.introduction_name);
+  const music = event.music_selections;
+  const songs = music ? getMusicSongs(music) : [];
+  const musicVariety = event.music_variety ?? [];
+  const showMusic = hasMusicContent(music) || musicVariety.length > 0;
+  const timeline = event.timeline ?? [];
+  const bridesmaids = event.bridesmaids ?? [];
+  const groomsmen = event.groomsmen ?? [];
+  const activities = event.activities ?? [];
+  const hasVenueExtra = !!(event.venue_phone || event.venue_contact || event.venue_notes || event.ceremony_separate_location != null);
+  const hasWeddingParty = !!(event.maid_of_honor || event.best_man || event.flower_girl || event.ring_bearer || bridesmaids.length || groomsmen.length);
+  const hasAssignment = !!(event.assigned_dj || event.second_assigned || event.system_number || event.dj_attire);
+  const introduces = [event.introduce_couple ? 'The Couple' : null, event.introduce_wedding_party ? 'The Wedding Party' : null].filter(Boolean) as string[];
+  const hasReception = !!(event.dinner_service || event.blessing_by || event.toasts_by || event.take_requests != null || event.introduce_couple != null || event.introduce_wedding_party != null || activities.length);
+  const triLabel = (v: boolean | null) => (v == null ? null : v ? 'Yes' : 'No');
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -304,7 +233,7 @@ export default function EventDetail() {
       </div>
 
       {/* Couple Names */}
-      {hasCouple && coupleData && (
+      {hasCouple && (
         <div className="card-elevated border-accent/20">
           <div className="flex items-center gap-2 mb-3">
             <HomeIcon size={15} className="text-accent" />
@@ -313,24 +242,27 @@ export default function EventDetail() {
             </h3>
           </div>
           <div className="space-y-0">
-            {coupleData.bride && (
-              <div className="flex items-center justify-between py-2.5 border-b border-border-subtle">
-                <span className="text-sm text-text-tertiary">Bride</span>
-                <span className="text-sm font-semibold text-text-primary">{coupleData.bride}</span>
-              </div>
+            {event.bride_name && (
+              <EventInfoRow icon={<HomeIcon size={15} />} label="Bride" value={event.bride_name} />
             )}
-            {coupleData.groom && (
-              <div className="flex items-center justify-between py-2.5">
-                <span className="text-sm text-text-tertiary">Groom</span>
-                <span className="text-sm font-semibold text-text-primary">{coupleData.groom}</span>
-              </div>
+            {event.groom_name && (
+              <EventInfoRow icon={<HomeIcon size={15} />} label="Groom" value={event.groom_name} />
+            )}
+            {event.bride_parents && (
+              <EventInfoRow icon={<HomeIcon size={15} />} label="Bride's Parents" value={event.bride_parents} />
+            )}
+            {event.groom_parents && (
+              <EventInfoRow icon={<HomeIcon size={15} />} label="Groom's Parents" value={event.groom_parents} />
+            )}
+            {event.introduction_name && (
+              <EventInfoRow icon={<SparklesIcon size={15} />} label="Introduce As" value={event.introduction_name} />
             )}
           </div>
         </div>
       )}
 
       {/* Music Selections — shown near top because it's critical for DJs */}
-      {hasMusic && musicData && (
+      {showMusic && (
         <div className="card-elevated border-accent/20">
           <div className="flex items-center gap-2 mb-3">
             <HeadphonesIcon size={15} className="text-accent" />
@@ -339,10 +271,9 @@ export default function EventDetail() {
             </h3>
           </div>
 
-          {/* Key moment songs */}
-          {musicData.songs.length > 0 && (
+          {songs.length > 0 && (
             <div className="space-y-0 mb-4">
-              {musicData.songs.map((entry, i) => (
+              {songs.map((entry, i) => (
                 <div key={i} className="flex items-start justify-between py-2.5 border-b border-border-subtle last:border-0 gap-3">
                   <span className="text-sm text-text-tertiary shrink-0">{entry.label}</span>
                   <span className="text-sm font-medium text-text-primary text-right">{entry.song}</span>
@@ -351,14 +282,13 @@ export default function EventDetail() {
             </div>
           )}
 
-          {/* Must Play */}
-          {musicData.mustPlay.length > 0 && (
+          {music && music.must_play?.length > 0 && (
             <div className="mb-3">
               <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-1.5">
-                Must Play
+                Additional Requests
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {musicData.mustPlay.map((song, i) => (
+                {music.must_play.map((song, i) => (
                   <span key={i} className="badge badge-upcoming !text-xs py-1">
                     ♪ {song}
                   </span>
@@ -367,14 +297,13 @@ export default function EventDetail() {
             </div>
           )}
 
-          {/* Do Not Play */}
-          {musicData.doNotPlay.length > 0 && (
+          {music && music.do_not_play?.length > 0 && (
             <div className="mb-3">
               <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-1.5">
                 Do Not Play
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {musicData.doNotPlay.map((song, i) => (
+                {music.do_not_play.map((song, i) => (
                   <span key={i} className="badge badge-cancelled !text-xs py-1">
                     ✕ {song}
                   </span>
@@ -383,13 +312,25 @@ export default function EventDetail() {
             </div>
           )}
 
-          {/* Music Preferences */}
-          {musicData.preferences && (
+          {musicVariety.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-1.5">
+                Music Variety
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {musicVariety.map((g, i) => (
+                  <span key={i} className="badge badge-completed !text-xs py-1">{g}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {music?.music_preferences && (
             <div>
               <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-1.5">
                 Preferences
               </p>
-              <p className="text-sm text-text-secondary">{musicData.preferences}</p>
+              <p className="text-sm text-text-secondary">{music.music_preferences}</p>
             </div>
           )}
         </div>
@@ -403,47 +344,163 @@ export default function EventDetail() {
         <EventInfoRow icon={<CalendarIcon size={15} />} label="Type" value={event.event_type} />
         <EventInfoRow icon={<PhoneIcon size={15} />} label="Phone" value={event.client_phone} />
         <EventInfoRow icon={<MailIcon size={15} />} label="Email" value={event.client_email} />
-        <EventInfoRow icon={<MapPinIcon size={15} />} label="Venue" value={event.venue_name} />
-        <EventInfoRow icon={<MapPinIcon size={15} />} label="Address" value={event.venue_address} />
-        <EventInfoRow icon={<ClockIcon size={15} />} label="Start" value={event.start_time} />
-        <EventInfoRow icon={<ClockIcon size={15} />} label="End" value={event.end_time} />
-        {baseNotes && <EventInfoRow icon={<FileTextIcon size={15} />} label="Notes" value={baseNotes} />}
+        {event.partner_phone && (
+          <EventInfoRow icon={<PhoneIcon size={15} />} label="Partner Phone" value={event.partner_phone} />
+        )}
+        {event.partner_email && (
+          <EventInfoRow icon={<MailIcon size={15} />} label="Partner Email" value={event.partner_email} />
+        )}
+        {event.secondary_contact && (
+          <EventInfoRow icon={<PhoneIcon size={15} />} label="Secondary Contact" value={event.secondary_contact} />
+        )}
+        {event.guest_count != null && (
+          <EventInfoRow icon={<HomeIcon size={15} />} label="Guest Count" value={String(event.guest_count)} />
+        )}
       </div>
 
-      {/* Venue Info */}
-      {hasVenueInfo && venueData && (
+      {/* Assignment */}
+      {hasAssignment && (
         <div className="card-elevated">
-          <div className="flex items-center gap-2 mb-3">
+          <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+            Assignment
+          </h3>
+          {event.assigned_dj && <EventInfoRow icon={<HeadphonesIcon size={15} />} label="Assigned DJ" value={event.assigned_dj} />}
+          {event.second_assigned && <EventInfoRow icon={<HeadphonesIcon size={15} />} label="2nd Assigned" value={event.second_assigned} />}
+          {event.system_number && <EventInfoRow icon={<SparklesIcon size={15} />} label="System #" value={event.system_number} />}
+          {event.dj_attire && <EventInfoRow icon={<SparklesIcon size={15} />} label="DJ Attire" value={event.dj_attire} />}
+        </div>
+      )}
+
+      {/* Schedule */}
+      <div className="card-elevated">
+        <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+          Schedule
+        </h3>
+        {(event.ceremony_start_time || event.ceremony_end_time) && (
+          <EventInfoRow
+            icon={<ClockIcon size={15} />}
+            label="Ceremony"
+            value={[event.ceremony_start_time, event.ceremony_end_time].filter(Boolean).join(' – ') || null}
+          />
+        )}
+        <EventInfoRow
+          icon={<ClockIcon size={15} />}
+          label="Reception"
+          value={[event.start_time, event.end_time].filter(Boolean).join(' – ') || null}
+        />
+        {event.setup_time && <EventInfoRow icon={<ClockIcon size={15} />} label="Setup" value={event.setup_time} />}
+        {event.guest_arrival_time && <EventInfoRow icon={<ClockIcon size={15} />} label="Guest Arrival" value={event.guest_arrival_time} />}
+        {event.load_in_time && <EventInfoRow icon={<ClockIcon size={15} />} label="Load-in" value={event.load_in_time} />}
+        {event.pickup_time && <EventInfoRow icon={<ClockIcon size={15} />} label="Pickup" value={event.pickup_time} />}
+        {event.booked_hours != null && <EventInfoRow icon={<ClockIcon size={15} />} label="Booked Hours" value={String(event.booked_hours)} />}
+      </div>
+
+      {/* Venue */}
+      {(event.venue_name || event.venue_address || hasVenueExtra) && (
+        <div className="card-elevated">
+          <div className="flex items-center gap-2 mb-2">
             <MapPinIcon size={14} className="text-accent" />
             <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-              Venue Info
+              Venue
             </h3>
           </div>
-          <div className="space-y-0">
-            {venueData.phone && (
-              <div className="flex items-center justify-between py-2.5 border-b border-border-subtle">
-                <span className="text-sm text-text-tertiary">Venue Phone</span>
-                <span className="text-sm font-medium text-text-primary">{venueData.phone}</span>
-              </div>
-            )}
-            {venueData.contact && (
-              <div className="flex items-center justify-between py-2.5 border-b border-border-subtle">
-                <span className="text-sm text-text-tertiary">Venue Contact</span>
-                <span className="text-sm font-medium text-text-primary">{venueData.contact}</span>
-              </div>
-            )}
-            {venueData.notes && (
-              <div className="pt-2.5">
-                <span className="text-sm text-text-tertiary block mb-1">Venue Notes</span>
-                <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">{venueData.notes}</p>
-              </div>
-            )}
+          <EventInfoRow icon={<MapPinIcon size={15} />} label="Name" value={event.venue_name} />
+          <EventInfoRow icon={<MapPinIcon size={15} />} label="Address" value={event.venue_address} />
+          {event.venue_phone && (
+            <EventInfoRow icon={<PhoneIcon size={15} />} label="Venue Phone" value={event.venue_phone} />
+          )}
+          {event.venue_contact && (
+            <EventInfoRow icon={<PhoneIcon size={15} />} label="Venue Contact" value={event.venue_contact} />
+          )}
+          {event.ceremony_separate_location != null && (
+            <EventInfoRow
+              icon={<MapPinIcon size={15} />}
+              label="Ceremony Location"
+              value={event.ceremony_separate_location ? 'Separate from reception' : 'Same as reception'}
+            />
+          )}
+          {event.venue_notes && (
+            <div className="mt-3 p-3 rounded-xl bg-surface-2 border border-border-subtle">
+              <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-1.5">
+                Venue Notes
+              </p>
+              <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">
+                {event.venue_notes}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Wedding Party */}
+      {hasWeddingParty && (
+        <div className="card-elevated">
+          <div className="flex items-center gap-2 mb-2">
+            <HomeIcon size={14} className="text-accent" />
+            <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+              Wedding Party
+            </h3>
           </div>
+          {event.maid_of_honor && <EventInfoRow icon={<HomeIcon size={15} />} label="Maid/Matron of Honor" value={event.maid_of_honor} />}
+          {event.best_man && <EventInfoRow icon={<HomeIcon size={15} />} label="Best Man" value={event.best_man} />}
+          {event.flower_girl && <EventInfoRow icon={<HomeIcon size={15} />} label="Flower Girl" value={event.flower_girl} />}
+          {event.ring_bearer && <EventInfoRow icon={<HomeIcon size={15} />} label="Ring Bearer" value={event.ring_bearer} />}
+          {bridesmaids.length > 0 && (
+            <div className="pt-3">
+              <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-1.5">Bridesmaids</p>
+              <div className="flex flex-wrap gap-1.5">
+                {bridesmaids.map((n, i) => (
+                  <span key={i} className="badge badge-upcoming !text-xs py-1">{n}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {groomsmen.length > 0 && (
+            <div className="pt-3">
+              <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-1.5">Groomsmen</p>
+              <div className="flex flex-wrap gap-1.5">
+                {groomsmen.map((n, i) => (
+                  <span key={i} className="badge badge-upcoming !text-xs py-1">{n}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Reception Flow */}
+      {hasReception && (
+        <div className="card-elevated">
+          <div className="flex items-center gap-2 mb-2">
+            <ClipboardCheckIcon size={14} className="text-accent" />
+            <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+              Reception Flow
+            </h3>
+          </div>
+          {event.dinner_service && (
+            <EventInfoRow icon={<ClipboardCheckIcon size={15} />} label="Dinner Service" value={event.dinner_service === 'seated' ? 'Seated Dinner' : event.dinner_service === 'buffet' ? 'Buffet' : event.dinner_service} />
+          )}
+          {event.blessing_by && <EventInfoRow icon={<SparklesIcon size={15} />} label="Blessing By" value={event.blessing_by} />}
+          {event.toasts_by && <EventInfoRow icon={<SparklesIcon size={15} />} label="Toasts By" value={event.toasts_by} />}
+          {event.take_requests != null && <EventInfoRow icon={<HeadphonesIcon size={15} />} label="Take Requests" value={triLabel(event.take_requests)} />}
+          {(event.introduce_couple != null || event.introduce_wedding_party != null) && (
+            <EventInfoRow icon={<SparklesIcon size={15} />} label="DJ Introduces" value={introduces.length ? introduces.join(' & ') : 'None'} />
+          )}
+          {activities.length > 0 && (
+            <div className="pt-3">
+              <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-1.5">Activities</p>
+              <div className="flex flex-wrap gap-1.5">
+                {activities.map((a, i) => (
+                  <span key={i} className="badge badge-upcoming !text-xs py-1">{a}</span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Timeline / Run of Show */}
-      {hasTimeline && (
+      {timeline.length > 0 && (
         <div className="card-elevated">
           <div className="flex items-center gap-2 mb-3">
             <ClipboardCheckIcon size={14} className="text-accent" />
@@ -452,25 +509,20 @@ export default function EventDetail() {
             </h3>
           </div>
           <div>
-            {extractSection(notes, 'Timeline:').map((entry, i) => {
-              const dashIdx = entry.indexOf('–');
-              const time = dashIdx >= 0 ? entry.slice(0, dashIdx).trim() : entry.trim();
-              const activity = dashIdx >= 0 ? entry.slice(dashIdx + 1).trim() : '';
-              return (
-                <div key={i} className="flex gap-3 py-2.5 border-b border-border-subtle last:border-0">
-                  <span className="text-sm font-mono font-semibold text-accent shrink-0 w-14">
-                    {time}
-                  </span>
-                  <span className="text-sm text-text-secondary">{activity}</span>
-                </div>
-              );
-            })}
+            {timeline.map((entry, i) => (
+              <div key={i} className="flex gap-3 py-2.5 border-b border-border-subtle last:border-0">
+                <span className="text-sm font-mono font-semibold text-accent shrink-0 w-14">
+                  {entry.time}
+                </span>
+                <span className="text-sm text-text-secondary">{entry.activity}</span>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       {/* Special Instructions */}
-      {hasSpecialInstructions && (
+      {event.special_instructions && (
         <div className="card-elevated">
           <div className="flex items-center gap-2 mb-3">
             <SparklesIcon size={14} className="text-accent" />
@@ -479,13 +531,13 @@ export default function EventDetail() {
             </h3>
           </div>
           <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">
-            {extractSectionText(notes, 'Special instructions:')}
+            {event.special_instructions}
           </p>
         </div>
       )}
 
-      {/* Standalone Notes (only shown when no structured sections exist) */}
-      {!hasTimeline && !hasMusic && !hasSpecialInstructions && !hasLabeledNotes && notes && (
+      {/* Notes */}
+      {event.notes && (
         <div className="card-elevated">
           <div className="flex items-center gap-2 mb-3">
             <FileTextIcon size={14} className="text-text-quaternary" />
@@ -494,7 +546,7 @@ export default function EventDetail() {
             </h3>
           </div>
           <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">
-            {notes}
+            {event.notes}
           </p>
         </div>
       )}

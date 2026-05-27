@@ -12,20 +12,22 @@ export default function PayBreakdown({ event }: PayBreakdownProps) {
   const rows = [
     { icon: <DollarIcon size={15} />, label: 'Base Pay', value: pay.base, color: 'text-text-primary' },
     ...(pay.compliance > 0
-      ? [{
-          icon: <ClipboardCheckIcon size={15} />,
-          label: 'Compliance Bonus',
-          value: pay.compliance,
-          color: 'text-success',
-        }]
+      ? [{ icon: <ClipboardCheckIcon size={15} />, label: 'Compliance Bonus', value: pay.compliance, color: 'text-success' }]
       : []),
-    ...(event.mileage_miles > 0
-      ? [{
-          icon: <CarIcon size={15} />,
-          label: `Mileage (${event.mileage_miles} mi × ${event.mileage_rate}/mi)`,
-          value: pay.mileage,
-          color: 'text-text-primary',
-        }]
+    ...(pay.over_hours > 0
+      ? [{ icon: <DollarIcon size={15} />, label: 'Over Hours', value: pay.over_hours, color: 'text-text-primary' }]
+      : []),
+    ...(pay.fuel > 0
+      ? [{ icon: <CarIcon size={15} />, label: 'Fuel Recovery', value: pay.fuel, color: 'text-text-primary' }]
+      : []),
+    ...(pay.overtime > 0
+      ? [{ icon: <DollarIcon size={15} />, label: 'Overtime', value: pay.overtime, color: 'text-text-primary' }]
+      : []),
+    ...(pay.tip > 0
+      ? [{ icon: <DollarIcon size={15} />, label: 'Tip', value: pay.tip, color: 'text-success' }]
+      : []),
+    ...(pay.other > 0
+      ? [{ icon: <DollarIcon size={15} />, label: 'Other', value: pay.other, color: 'text-text-primary' }]
       : []),
   ];
 
