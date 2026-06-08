@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.github
+*.md
+.env*
+.replit
+replit.nix
+public
+THE-VISION
