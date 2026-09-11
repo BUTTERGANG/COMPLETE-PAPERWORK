@@ -21,6 +21,7 @@ const Events = lazy(() => import('./pages/Events'));
 const EventDetail = lazy(() => import('./pages/EventDetail'));
 const AddEvent = lazy(() => import('./pages/AddEvent'));
 const ScanPaperwork = lazy(() => import('./pages/ScanPaperwork'));
+const EditEvent = lazy(() => import('./pages/EditEvent'));
 
 function PageSuspense({ children }: { children: React.ReactNode }) {
   return (
@@ -43,7 +44,7 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-base flex items-center justify-center">
+      <div className="min-h-screen bg-bg flex items-center justify-center">
         <div className="animate-spin text-4xl" role="status" aria-label="Loading">🎧</div>
       </div>
     );
@@ -61,6 +62,7 @@ function App() {
             <Route path="/" element={<ErrorBoundary><PageSuspense><Dashboard /></PageSuspense></ErrorBoundary>} />
             <Route path="/events" element={<ErrorBoundary><PageSuspense><Events /></PageSuspense></ErrorBoundary>} />
             <Route path="/events/:id" element={<ErrorBoundary><PageSuspense><EventDetail /></PageSuspense></ErrorBoundary>} />
+            <Route path="/events/:id/edit" element={<ErrorBoundary><PageSuspense><EditEvent /></PageSuspense></ErrorBoundary>} />
             <Route path="/add" element={<ErrorBoundary><PageSuspense><AddEvent /></PageSuspense></ErrorBoundary>} />
             <Route path="/scan" element={<ErrorBoundary><PageSuspense><ScanPaperwork /></PageSuspense></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/" replace />} />

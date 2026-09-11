@@ -27,7 +27,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-dvh flex items-center justify-center px-5 bg-base">
+    <div className="min-h-dvh flex items-center justify-center px-5 bg-bg">
       {/* Subtle background glow */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-80 h-80 bg-accent/5 rounded-full blur-3xl" />
