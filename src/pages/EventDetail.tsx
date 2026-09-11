@@ -11,6 +11,8 @@ import { Spinner } from '../components/Spinner';
 import {
   ChevronLeftIcon,
   TrashIcon,
+  EditIcon,
+  DownloadIcon,
   MapPinIcon,
   PhoneIcon,
   MailIcon,
@@ -22,6 +24,8 @@ import {
   HeadphonesIcon,
   HomeIcon,
 } from '../components/icons/Icons';
+import { downloadEventMarkdown } from '../lib/exportEvent';
+import { downloadEventDocx } from '../lib/exportDocx';
 
 function EventInfoRow({
   icon,
@@ -128,6 +132,8 @@ export default function EventDetail() {
   };
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!showDeleteConfirm) return;
@@ -135,6 +141,22 @@ export default function EventDetail() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [showDeleteConfirm]);
+
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setShowExportMenu(false);
+    const onOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onOutside);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onOutside);
+    };
+  }, [showExportMenu]);
 
   const handleDelete = async () => {
     if (!event || !id) return;
@@ -194,6 +216,41 @@ export default function EventDetail() {
           <ChevronLeftIcon size={20} />
         </button>
         <div className="flex gap-1">
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              onClick={() => setShowExportMenu((v) => !v)}
+              className="btn-ghost !p-2"
+              aria-label="Export event"
+              aria-expanded={showExportMenu}
+            >
+              <DownloadIcon size={17} />
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 z-50 card-elevated !p-1 min-w-[160px] shadow-lg">
+                <button
+                  onClick={() => { downloadEventDocx(event); setShowExportMenu(false); }}
+                  className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-2"
+                >
+                  <FileTextIcon size={14} className="text-accent" />
+                  <span>Word / Google Docs</span>
+                </button>
+                <button
+                  onClick={() => { downloadEventMarkdown(event); setShowExportMenu(false); }}
+                  className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-2"
+                >
+                  <FileTextIcon size={14} className="text-text-quaternary" />
+                  <span>Markdown (.md)</span>
+                </button>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => navigate(`/events/${id}/edit`)}
+            className="btn-ghost !p-2"
+            aria-label="Edit event"
+          >
+            <EditIcon size={17} />
+          </button>
           <button
             onClick={handleDelete}
             className="btn-ghost btn-danger !p-2"
