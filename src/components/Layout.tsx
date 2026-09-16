@@ -1,5 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useState } from 'react';
+import { getTheme, setTheme, type Theme } from '../lib/theme';
 import {
   HomeIcon,
   CalendarIcon,
@@ -7,15 +9,23 @@ import {
   PlusIcon,
   LogOutIcon,
   HeadphonesIcon,
+  SunIcon,
+  MoonIcon,
 } from './icons/Icons';
 
 export default function Layout() {
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const [theme, setThemeState] = useState<Theme>(getTheme());
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
+  };
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setThemeState(setTheme(next));
   };
 
   const navItems = [
@@ -37,9 +47,19 @@ export default function Layout() {
               DJ Ops
             </span>
           </div>
-          <button onClick={handleSignOut} className="btn-ghost !p-2" aria-label="Sign out">
-            <LogOutIcon size={18} />
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={toggleTheme}
+              aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              className="btn-ghost !p-2"
+            >
+              {theme === 'dark' ? <SunIcon size={16} /> : <MoonIcon size={16} />}
+            </button>
+            <button onClick={handleSignOut} className="btn-ghost !p-2" aria-label="Sign out">
+              <LogOutIcon size={18} />
+            </button>
+          </div>
         </div>
       </header>
 

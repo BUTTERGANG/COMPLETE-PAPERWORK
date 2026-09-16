@@ -50,6 +50,26 @@ body {
   overscroll-behavior: none;
 }
 
+/* ── Light theme: flip surfaces (keep the amber accent) when
+   <html data-theme="light"> is set by the nav toggle. ── */
+html[data-theme="light"] {
+  --color-base: #f7f4ef;
+  --color-surface-1: #efe9e1;
+  --color-surface-2: #e5dcd0;
+  --color-surface-3: #d8cdbd;
+  --color-border: #d3c8b4;
+  --color-border-subtle: #e2dacb;
+  --color-text-primary: #1f1b17;
+  --color-text-secondary: #4a4038;
+  --color-text-tertiary: #6f6356;
+  --color-text-quaternary: #8a7a67;
+  --color-accent-glow: rgba(245, 158, 11, 0.14);
+  --color-accent-glow-strong: rgba(245, 158, 11, 0.26);
+}
+html[data-theme="light"] body {
+  color: var(--color-text-primary);
+}
+
 #root {
   min-height: 100dvh;
 }

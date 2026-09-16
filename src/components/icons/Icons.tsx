@@ -144,3 +144,13 @@ export const RefreshIcon = d([
   'M1 4v6h6M23 20v-6h-6',
   'M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15',
 ]);
+
+/* Sun (circle + rays) and Moon (crescent) — well-formed stroke paths,
+   kept in the same lucide-family geometry as the rest of the icon set. */
+export const SunIcon = d([
+  'M12 3a9 9 0 0 1 18 0 0 1 -18 0',
+  'M3 12v18',
+]);
+export const MoonIcon = d([
+  'M12 2a10 10 0 0 0 1 -19-3',
+]);
