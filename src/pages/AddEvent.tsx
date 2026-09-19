@@ -27,7 +27,7 @@ export default function AddEvent() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="btn-ghost !p-2 -ml-2">
+        <button onClick={() => navigate(-1)} className="btn-ghost !p-2 -ml-2" aria-label="Go back">
           <ChevronLeftIcon size={20} />
         </button>
         <h2 className="text-2xl font-bold tracking-tight text-text-primary">Add Event</h2>

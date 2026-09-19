@@ -126,7 +126,11 @@ const Field = ({
       {label}
     </label>
     {children}
-    {error && <p className="mt-1.5 text-xs font-medium text-danger">{error}</p>}
+    {error && (
+      <p id={`${id}-error`} className="mt-1.5 text-xs font-medium text-danger">
+        {error}
+      </p>
+    )}
   </div>
 );
 
@@ -173,6 +177,8 @@ function MoneyInput({
         step="0.01"
         min="0"
         placeholder="0.00"
+        aria-invalid={!!errors[name]}
+        aria-describedby={errors[name] ? `${name}-error` : undefined}
         {...register(name, { valueAsNumber: true, min: { value: 0, message: 'Must be 0 or greater' } })}
       />
     </Field>
@@ -346,7 +352,13 @@ export default function EventForm({
       <div className="card-elevated space-y-4">
         <SectionTitle>Event</SectionTitle>
         <Field label="Date" id="event_date" error={errors.event_date?.message}>
-          <input id="event_date" type="date" {...register('event_date', { required: 'Date is required' })} />
+          <input
+            id="event_date"
+            type="date"
+            aria-invalid={!!errors.event_date}
+            aria-describedby={errors.event_date ? 'event_date-error' : undefined}
+            {...register('event_date', { required: 'Date is required' })}
+          />
         </Field>
 
         <Field label="Event Type" id="event_type">
@@ -375,7 +387,13 @@ export default function EventForm({
       <div className="card-elevated space-y-4">
         <SectionTitle>Client &amp; Couple</SectionTitle>
         <Field label="Client Name" id="client_name" error={errors.client_name?.message}>
-          <input id="client_name" {...register('client_name', { required: 'Name is required' })} placeholder="John & Jane" />
+          <input
+            id="client_name"
+            aria-invalid={!!errors.client_name}
+            aria-describedby={errors.client_name ? 'client_name-error' : undefined}
+            {...register('client_name', { required: 'Name is required' })}
+            placeholder="John & Jane"
+          />
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
@@ -479,12 +497,20 @@ export default function EventForm({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Reception Start" id="start_time" error={errors.start_time?.message}>
-            <input id="start_time" type="time" {...register('start_time', { required: 'Start time is required' })} />
+            <input
+              id="start_time"
+              type="time"
+              aria-invalid={!!errors.start_time}
+              aria-describedby={errors.start_time ? 'start_time-error' : undefined}
+              {...register('start_time', { required: 'Start time is required' })}
+            />
           </Field>
           <Field label="Reception End" id="end_time" error={errors.end_time?.message}>
             <input
               id="end_time"
               type="time"
+              aria-invalid={!!errors.end_time}
+              aria-describedby={errors.end_time ? 'end_time-error' : undefined}
               {...register('end_time', {
                 validate: (value) => {
                   if (!value) return true;

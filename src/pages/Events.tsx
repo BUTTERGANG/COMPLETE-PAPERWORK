@@ -2,14 +2,14 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEvents } from '../hooks/useEvents';
 import EventCard from '../components/EventCard';
-import { SearchIcon, PlusIcon, CalendarIcon } from '../components/icons/Icons';
+import { SearchIcon, PlusIcon, CalendarIcon, AlertCircleIcon } from '../components/icons/Icons';
 import { Spinner } from '../components/Spinner';
 import { EmptyState } from '../components/EmptyState';
 
 type Filter = 'all' | 'upcoming' | 'completed';
 
 export default function Events() {
-  const { events, loading } = useEvents();
+  const { events, loading, error } = useEvents();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
@@ -49,6 +49,13 @@ export default function Events() {
           <PlusIcon size={20} strokeWidth={2.5} />
         </button>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-danger/10 border border-danger/20">
+          <AlertCircleIcon size={16} className="text-danger shrink-0" />
+          <p className="text-sm text-danger">Failed to load events: {error}</p>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative">
