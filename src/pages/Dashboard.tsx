@@ -13,12 +13,13 @@ import {
   DollarIcon,
   TrendingUpIcon,
   PlusIcon,
+  AlertCircleIcon,
 } from '../components/icons/Icons';
 import { Spinner } from '../components/Spinner';
 import { EmptyState } from '../components/EmptyState';
 
 export default function Dashboard() {
-  const { events, loading } = useEvents();
+  const { events, loading, error } = useEvents();
   const navigate = useNavigate();
 
   const stats = useMemo(() => {
@@ -80,6 +81,13 @@ export default function Dashboard() {
           Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'} 👋
         </h2>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-danger/10 border border-danger/20">
+          <AlertCircleIcon size={16} className="text-danger shrink-0" />
+          <p className="text-sm text-danger">Failed to load events: {error}</p>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3 stagger-children">

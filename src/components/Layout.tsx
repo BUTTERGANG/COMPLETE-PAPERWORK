@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useState } from 'react';
 import { getTheme, setTheme, type Theme } from '../lib/theme';
@@ -15,12 +15,12 @@ import {
 
 export default function Layout() {
   const { signOut } = useAuth();
-  const navigate = useNavigate();
   const [theme, setThemeState] = useState<Theme>(getTheme());
 
   const handleSignOut = async () => {
+    // Clearing auth state (via signOut) causes App to unmount the router
+    // and render the Login screen directly — there is no routed /login path.
     await signOut();
-    navigate('/login');
   };
 
   const toggleTheme = () => {
