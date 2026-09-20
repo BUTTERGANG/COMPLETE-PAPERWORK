@@ -1,18 +1,34 @@
 import { useState, useRef } from 'react';
-import { parsePaperwork } from '../lib/claude';
+import { parsePaperwork, type UploadPage } from '../lib/claude';
 import { compressImage } from '../lib/imageCompress';
 import type { ParsedEvent } from '../types/event';
-import { CameraIcon, UploadIcon, ImageIcon, XIcon, PlusIcon } from './icons/Icons';
+import { CameraIcon, UploadIcon, ImageIcon, XIcon, PlusIcon, FileTextIcon } from './icons/Icons';
 import { Spinner } from './Spinner';
 
 interface PaperworkScannerProps {
-  onParsed: (data: ParsedEvent, base64Images: string[], previews: string[]) => void;
+  onParsed: (data: ParsedEvent, base64Pages: string[], previews: string[]) => void;
 }
 
 interface PendingImage {
   id: string;
   file: File;
-  preview: string;
+  preview: string | null; // null for PDFs (can't render as <img>)
+  isPdf: boolean;
+}
+
+const ACCEPT = 'image/*,application/pdf';
+
+function readAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
 }
 
 export function EmptyScannerState({ onCapture, onUpload }: { onCapture: () => void; onUpload: () => void }) {
@@ -22,8 +38,8 @@ export function EmptyScannerState({ onCapture, onUpload }: { onCapture: () => vo
         <ImageIcon size={28} className="text-accent" />
       </div>
       <h3 className="text-lg font-semibold text-text-primary mb-2">Scan Your Paperwork</h3>
-      <p className="text-sm text-text-tertiary mb-8 max-w-56 mx-auto">
-        Capture or upload one or more worksheet pages and let AI extract the details
+      <p className="text-sm text-text-tertiary mb-8 max-w-60 mx-auto">
+        Capture, upload, or drop in a PDF worksheet and let AI extract the details
       </p>
       <div className="flex gap-3 justify-center">
         <button onClick={onCapture} className="btn-primary">
@@ -32,7 +48,7 @@ export function EmptyScannerState({ onCapture, onUpload }: { onCapture: () => vo
         </button>
         <button onClick={onUpload} className="btn-secondary">
           <UploadIcon size={18} />
-          Upload
+          Upload / PDF
         </button>
       </div>
     </div>
@@ -40,7 +56,7 @@ export function EmptyScannerState({ onCapture, onUpload }: { onCapture: () => vo
 }
 
 export default function PaperworkScanner({ onParsed }: PaperworkScannerProps) {
-  const [images, setImages] = useState<PendingImage[]>([]);
+  const [pages, setPages] = useState<PendingImage[]>([]);
   const [compressing, setCompressing] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [processed, setProcessed] = useState(0);
@@ -51,11 +67,17 @@ export default function PaperworkScanner({ onParsed }: PaperworkScannerProps) {
   const addFiles = (files: FileList) => {
     setError('');
     Array.from(files).forEach((file) => {
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      const id = crypto.randomUUID();
+      if (isPdf) {
+        setPages((prev) => [...prev, { id, file, preview: null, isPdf: true }]);
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (e) => {
-        setImages((prev) => [
+        setPages((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), file, preview: e.target?.result as string },
+          { id, file, preview: e.target?.result as string, isPdf: false },
         ]);
       };
       reader.readAsDataURL(file);
@@ -67,30 +89,42 @@ export default function PaperworkScanner({ onParsed }: PaperworkScannerProps) {
     e.target.value = '';
   };
 
-  const removeImage = (id: string) => setImages((prev) => prev.filter((img) => img.id !== id));
+  const removePage = (id: string) => setPages((prev) => prev.filter((p) => p.id !== id));
 
   const handleParse = async () => {
-    if (images.length === 0) return;
+    if (pages.length === 0) return;
     setCompressing(true);
     setParsing(true);
     setProcessed(0);
     setError('');
     try {
       let done = 0;
-      const compressed = await Promise.all(
-        images.map(async (img) => {
-          const result = await compressImage(img.file);
-          done += 1;
-          setProcessed(done);
-          return result;
-        }),
-      );
-      const base64Images = compressed.map((dataUrl) => dataUrl.split(',')[1]);
+      const payloads: UploadPage[] = [];
+      const rawBase64: string[] = [];
+      const previews: string[] = [];
+
+      for (const page of pages) {
+        if (page.isPdf) {
+          const data = await readAsBase64(page.file);
+          payloads.push({ mediaType: 'application/pdf', data });
+          rawBase64.push(data);
+          previews.push('');
+        } else {
+          const dataUrl = await compressImage(page.file);
+          const data = dataUrl.split(',')[1];
+          payloads.push({ mediaType: 'image/jpeg', data });
+          rawBase64.push(data);
+          previews.push(page.preview ?? dataUrl);
+        }
+        done += 1;
+        setProcessed(done);
+      }
+
       setCompressing(false);
-      const parsed = await parsePaperwork(base64Images);
-      onParsed(parsed, base64Images, images.map((img) => img.preview));
+      const parsed = await parsePaperwork(payloads);
+      onParsed(parsed, rawBase64, previews);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to parse images');
+      setError(err instanceof Error ? err.message : 'Failed to parse files');
     } finally {
       setCompressing(false);
       setParsing(false);
@@ -111,13 +145,13 @@ export default function PaperworkScanner({ onParsed }: PaperworkScannerProps) {
       <input
         ref={fileRef}
         type="file"
-        accept="image/*"
+        accept={ACCEPT}
         multiple
         className="hidden"
         onChange={handleInputChange}
       />
 
-      {images.length === 0 ? (
+      {pages.length === 0 ? (
         <EmptyScannerState
           onCapture={() => cameraRef.current?.click()}
           onUpload={() => fileRef.current?.click()}
@@ -126,28 +160,48 @@ export default function PaperworkScanner({ onParsed }: PaperworkScannerProps) {
         <div className="space-y-4 animate-fade-in">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-text-secondary">
-              {images.length} {images.length === 1 ? 'page' : 'pages'}
+              {pages.length} {pages.length === 1 ? 'page' : 'pages'}
             </span>
             <span className="text-xs text-text-tertiary">Tap a page to remove</span>
           </div>
 
           <div className="grid grid-cols-3 gap-2.5">
-            {images.map((img) => (
-              <button
-                key={img.id}
-                type="button"
-                onClick={() => removeImage(img.id)}
-                className="group relative aspect-square rounded-xl overflow-hidden border border-border bg-surface-2"
-                aria-label="Remove page"
-              >
-                <img src={img.preview} alt="Paperwork page" className="w-full h-full object-cover" />
-                <span className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                  <span className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full bg-danger flex items-center justify-center">
-                    <XIcon size={15} className="text-white" />
+            {pages.map((page) =>
+              page.isPdf ? (
+                <button
+                  key={page.id}
+                  type="button"
+                  onClick={() => removePage(page.id)}
+                  className="group relative aspect-square rounded-xl overflow-hidden border border-border bg-surface-2 flex flex-col items-center justify-center gap-1.5"
+                  aria-label="Remove PDF page"
+                >
+                  <FileTextIcon size={26} className="text-accent" />
+                  <span className="text-[10px] font-medium text-text-tertiary px-1 text-center truncate w-full">
+                    {page.file.name}
                   </span>
-                </span>
-              </button>
-            ))}
+                  <span className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full bg-danger flex items-center justify-center">
+                      <XIcon size={15} className="text-white" />
+                    </span>
+                  </span>
+                </button>
+              ) : (
+                <button
+                  key={page.id}
+                  type="button"
+                  onClick={() => removePage(page.id)}
+                  className="group relative aspect-square rounded-xl overflow-hidden border border-border bg-surface-2"
+                  aria-label="Remove page"
+                >
+                  <img src={page.preview!} alt="Paperwork page" className="w-full h-full object-cover" />
+                  <span className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full bg-danger flex items-center justify-center">
+                      <XIcon size={15} className="text-white" />
+                    </span>
+                  </span>
+                </button>
+              ),
+            )}
 
             <button
               type="button"
@@ -172,19 +226,19 @@ export default function PaperworkScanner({ onParsed }: PaperworkScannerProps) {
               <div className="flex items-center justify-between text-xs">
                 <span className="font-medium text-text-secondary">
                   {compressing
-                    ? `Preparing pages… ${processed}/${images.length}`
+                    ? `Preparing pages… ${processed}/${pages.length}`
                     : 'Analyzing with AI…'}
                 </span>
                 {compressing && (
                   <span className="text-text-tertiary tabular-nums">
-                    {Math.round((processed / images.length) * 100)}%
+                    {Math.round((processed / pages.length) * 100)}%
                   </span>
                 )}
               </div>
               <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden">
                 <div
                   className={`h-full rounded-full bg-accent transition-all duration-300 ${compressing ? '' : 'animate-pulse-soft'}`}
-                  style={{ width: compressing ? `${(processed / images.length) * 100}%` : '100%' }}
+                  style={{ width: compressing ? `${(processed / pages.length) * 100}%` : '100%' }}
                 />
               </div>
             </div>
@@ -207,7 +261,7 @@ export default function PaperworkScanner({ onParsed }: PaperworkScannerProps) {
             </button>
             <button
               onClick={() => {
-                setImages([]);
+                setPages([]);
                 setError('');
               }}
               disabled={parsing}

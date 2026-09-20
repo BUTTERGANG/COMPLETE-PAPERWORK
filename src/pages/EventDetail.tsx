@@ -7,6 +7,7 @@ import { useEvents } from '../hooks/useEvents';
 import type { Event, MusicSelections } from '../types/event';
 import { parseLocalDate } from '../lib/dateUtils';
 import PayBreakdown from '../components/PayBreakdown';
+import EventAssistant from '../components/EventAssistant';
 import { Spinner } from '../components/Spinner';
 import {
   ChevronLeftIcon,
@@ -23,6 +24,7 @@ import {
   ClipboardCheckIcon,
   HeadphonesIcon,
   HomeIcon,
+  DownloadIcon,
 } from '../components/icons/Icons';
 import { downloadEventMarkdown } from '../lib/exportEvent';
 import { downloadEventDocx } from '../lib/exportDocx';
@@ -227,12 +229,21 @@ export default function EventDetail() {
             </button>
             {showExportMenu && (
               <div className="absolute right-0 top-full mt-1 z-50 card-elevated !p-1 min-w-[160px] shadow-lg">
+                <a
+                  href={`/api/events/${encodeURIComponent(id!)}/export-docx`}
+                  download
+                  onClick={() => setShowExportMenu(false)}
+                  className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-2"
+                >
+                  <FileTextIcon size={14} className="text-accent" />
+                  <span>Note Sheet (operator)</span>
+                </a>
                 <button
                   onClick={() => { downloadEventDocx(event); setShowExportMenu(false); }}
                   className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-2"
                 >
                   <FileTextIcon size={14} className="text-accent" />
-                  <span>Word / Google Docs</span>
+                  <span>Full Record (Word)</span>
                 </button>
                 <button
                   onClick={() => { downloadEventMarkdown(event); setShowExportMenu(false); }}
@@ -610,6 +621,9 @@ export default function EventDetail() {
 
       {/* Pay */}
       <PayBreakdown event={event} />
+
+      {/* Notes & AI Assistant */}
+      <EventAssistant eventId={id!} />
 
       {/* Paperwork — stored as base64 directly in the event record */}
       {images.length > 0 && (

@@ -148,3 +148,14 @@ export const RefreshIcon = d([
 export const DownloadIcon = d([
   'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3',
 ]);
+
+export const SendIcon = d([
+  'M22 2 11 13',
+  'M22 2 15 22l-4-9-9-4 20-7z',
+]);
+
+export const MicIcon = d([
+  'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z',
+  'M19 10v2a7 7 0 0 1-14 0v-2',
+  'M12 19v4',
+]);
