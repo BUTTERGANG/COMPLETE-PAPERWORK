@@ -14,6 +14,7 @@ import {
 } from 'docx';
 import { format } from 'date-fns';
 import { parseLocalDate } from './dateUtils';
+import { eventFileName } from './eventFilename';
 import type { Event, MusicSelections } from '../types/event';
 
 const SONG_LABELS: [keyof MusicSelections, string][] = [
@@ -406,13 +407,8 @@ export async function downloadEventDocx(event: Event): Promise<void> {
   const blob = await eventToDocx(event);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const slug = (event.client_name || 'event')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  const datePart = event.event_date.replace(/-/g, '');
   a.href = url;
-  a.download = `${datePart}-${slug}.docx`;
+  a.download = eventFileName(event, { suffix: 'record' });
   a.click();
   URL.revokeObjectURL(url);
 }

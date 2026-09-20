@@ -11,6 +11,7 @@ import {
   AlignmentType,
 } from 'docx';
 import { buildNoteDocument, type NoteSection } from './noteTemplate';
+import { eventFileName } from '../src/lib/eventFilename';
 
 function buildTable(section: NoteSection): Table {
   const rows = section.rows.map(
@@ -76,12 +77,7 @@ export async function generateNoteDocx(
   return Packer.toBuffer(doc);
 }
 
-/** Filename for the downloaded .docx — safe slug. */
+/** Filename for the downloaded .docx — date-first + couple key for Drive sorting. */
 export function noteDocxFilename(event: Record<string, unknown>): string {
-  const who = String(event.client_name || event.bride_name || 'event')
-    .replace(/[^a-z0-9]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase();
-  const date = String(event.event_date || '').replace(/[^0-9]/g, '');
-  return `${who || 'event'}${date ? '-' + date : ''}-notes.docx`;
+  return eventFileName(event as { event_date?: string | null; client_name?: string | null; bride_name?: string | null; groom_name?: string | null }, { suffix: 'notes' });
 }
