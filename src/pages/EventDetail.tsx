@@ -24,7 +24,6 @@ import {
   ClipboardCheckIcon,
   HeadphonesIcon,
   HomeIcon,
-  DownloadIcon,
 } from '../components/icons/Icons';
 import { downloadEventMarkdown } from '../lib/exportEvent';
 import { downloadEventDocx } from '../lib/exportDocx';
