@@ -1,0 +1,4 @@
+# Local throwaway verification scripts (safe to delete)
+_verify_template.mjs
+whisper_test.mjs
+rebase-snapshot.mjs

@@ -8,6 +8,9 @@ import pg from 'pg';
 import Anthropic from '@anthropic-ai/sdk';
 import heicConvert from 'heic-convert';
 import * as schema from '../src/db/schema';
+import { detectMediaType, extractNoteText, answerEventQuestion, type UploadPage } from './ai';
+import { generateNoteDocx, noteDocxFilename } from './docxgen';
+import { transcribeAudio } from './transcriber';
 
 // Replit's Anthropic integration bills usage to the account via a local proxy,
 // exposing AI_INTEGRATIONS_ANTHROPIC_* instead of a raw ANTHROPIC_API_KEY.
@@ -88,7 +91,7 @@ const pool = new Pool({
 });
 const db = drizzle(pool, { schema });
 
-const { events } = schema;
+const { events, eventNotes, eventChatMessages } = schema;
 
 // Graceful shutdown
 const shutdown = async () => {
@@ -194,18 +197,25 @@ app.post('/api/parse-paperwork', async (req, res) => {
       return res.status(503).json({ error: 'AI parsing is not configured — the Anthropic API key is not set.' });
     }
 
-    const body = req.body as { base64Images?: string[]; base64Image?: string };
-    // Accept an array of images (multi-page paperwork) or a single image.
-    const images = body.base64Images ?? (body.base64Image ? [body.base64Image] : []);
-    if (images.length === 0) {
-      return res.status(400).json({ error: 'base64Images is required' });
-    }
-
-    const detectMediaType = (b64: string): 'image/jpeg' | 'image/png' | 'image/webp' => {
-      if (b64.startsWith('iVBOR')) return 'image/png';
-      if (b64.startsWith('UklGR')) return 'image/webp';
-      return 'image/jpeg';
+    const body = req.body as {
+      base64Images?: string[];
+      base64Image?: string;
+      payloads?: UploadPage[];
     };
+    // Accept an array of pages (multi-page paperwork / PDF) or a single image.
+    let pages: UploadPage[];
+    if (body.payloads?.length) {
+      pages = body.payloads;
+    } else {
+      const images = body.base64Images ?? (body.base64Image ? [body.base64Image] : []);
+      pages = images.map((data) => ({ mediaType: detectMediaType(data), data }));
+    }
+    if (pages.length === 0) {
+      return res.status(400).json({ error: 'At least one image or PDF is required' });
+    }
+    if (pages.some((p) => p.data.length * 0.75 > 5 * 1024 * 1024 * 4)) {
+      return res.status(413).json({ error: 'A page is too large. Use smaller images or fewer pages.' });
+    }
 
     const PROMPT = `You are parsing a DJ event worksheet or run-of-show document. It may span MULTIPLE images/pages — treat all of them as ONE document and merge the information. Extract ALL available information and return ONLY a JSON object with these fields:
 
@@ -296,20 +306,25 @@ app.post('/api/parse-paperwork', async (req, res) => {
 
 Use null (or [] for lists) for anything not present. Merge duplicate info across pages. Return ONLY the JSON object, no markdown.`;
 
-    const imageBlocks = images.map((data) => ({
-      type: 'image' as const,
-      source: { type: 'base64' as const, media_type: detectMediaType(data), data },
-    }));
+    const pageBlocks = pages.map((p) => {
+      if (p.mediaType === 'application/pdf') {
+        return {
+          type: 'document' as const,
+          source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: p.data },
+        };
+      }
+      return {
+        type: 'image' as const,
+        source: { type: 'base64' as const, media_type: p.mediaType, data: p.data },
+      };
+    });
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4000,
       messages: [{
         role: 'user',
-        content: [
-          ...imageBlocks,
-          { type: 'text', text: PROMPT },
-        ],
+        content: [...pageBlocks, { type: 'text', text: PROMPT }],
       }],
     });
 
@@ -435,10 +450,192 @@ app.delete('/api/events/:id', async (req, res) => {
       .where(and(eq(events.id, req.params.id), eq(events.user_id, req.userId)))
       .returning({ id: events.id });
     if (result.length === 0) return res.status(404).json({ error: 'Not found' });
+    // Cascade: remove any notes + chat attached to this event.
+    await db.delete(eventNotes).where(and(eq(eventNotes.event_id, req.params.id), eq(eventNotes.user_id, req.userId)));
+    await db.delete(eventChatMessages).where(and(eq(eventChatMessages.event_id, req.params.id), eq(eventChatMessages.user_id, req.userId)));
     res.status(204).send();
   } catch (e) {
     console.error('Failed to delete event:', e instanceof Error ? e.message : 'Unknown error');
     res.status(500).json({ error: 'Failed to delete event' });
+  }
+});
+
+// ---- Notes: typed text or text extracted from uploaded PDF / image / audio ----
+
+async function eventBelongsToUser(eventId: string, userId: string): Promise<boolean> {
+  const found = await db.query.events.findFirst({
+    where: and(eq(events.id, eventId), eq(events.user_id, userId)),
+    columns: { id: true },
+  });
+  return !!found;
+}
+
+// Add a note to an event. Body is one of:
+//   { content }                    -> typed/pasted note
+//   { imageBase64 | pdfBase64 }    -> extract text via AI, source=image|pdf
+//   { pages: UploadPage[] }        -> extract text via AI (mixed)
+//   { audioBase64 }                -> transcribe to text, source=audio
+app.post('/api/events/:id/notes', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!(await eventBelongsToUser(id, req.userId))) return res.status(404).json({ error: 'Not found' });
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const title = typeof body.title === 'string' ? body.title : null;
+    const content = typeof body.content === 'string' ? body.content : null;
+    const imageBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64 : null;
+    const pdfBase64 = typeof body.pdfBase64 === 'string' ? body.pdfBase64 : null;
+    const audioBase64 = typeof body.audioBase64 === 'string' ? body.audioBase64 : null;
+    const pages = Array.isArray(body.pages) ? (body.pages as UploadPage[]) : [];
+
+    let source: 'typed' | 'image' | 'pdf' | 'audio' = 'typed';
+    let note: string | null = content;
+
+    if (imageBase64 || pdfBase64 || pages.length) {
+      if (!ANTHROPIC_API_KEY) {
+        return res.status(503).json({ error: 'AI parsing is not configured.' });
+      }
+      const uploadPages: UploadPage[] = pages.length
+        ? pages
+        : [{ mediaType: pdfBase64 ? 'application/pdf' : detectMediaType(imageBase64!), data: pdfBase64 ?? imageBase64! }];
+      source = uploadPages[0]?.mediaType === 'application/pdf' ? 'pdf' : 'image';
+      note = await extractNoteText(anthropic, uploadPages);
+    } else if (audioBase64) {
+      source = 'audio';
+      note = await transcribeAudio(audioBase64);
+    }
+
+    const created = await db.insert(eventNotes).values({
+      id: crypto.randomUUID(),
+      user_id: req.userId,
+      event_id: id,
+      source,
+      title,
+      content: note ?? '',
+    }).returning();
+    res.status(201).json(created[0]);
+  } catch (e) {
+    console.error('Failed to add note:', e instanceof Error ? e.message : 'Unknown error');
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Failed to add note' });
+  }
+});
+
+// List notes for an event
+app.get('/api/events/:id/notes', async (req, res) => {
+  try {
+    const result = await db.query.eventNotes.findMany({
+      where: and(eq(eventNotes.event_id, req.params.id), eq(eventNotes.user_id, req.userId)),
+      orderBy: (t, { asc }) => [asc(t.created_at)],
+    });
+    res.json(result);
+  } catch (e) {
+    console.error('Failed to list notes:', e instanceof Error ? e.message : 'Unknown error');
+    res.status(500).json({ error: 'Failed to list notes' });
+  }
+});
+
+// Delete a note
+app.delete('/api/events/:id/notes/:noteId', async (req, res) => {
+  try {
+    const result = await db.delete(eventNotes)
+      .where(and(
+        eq(eventNotes.id, req.params.noteId),
+        eq(eventNotes.event_id, req.params.id),
+        eq(eventNotes.user_id, req.userId),
+      ))
+      .returning({ id: eventNotes.id });
+    if (result.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.status(204).send();
+  } catch (e) {
+    console.error('Failed to delete note:', e instanceof Error ? e.message : 'Unknown error');
+    res.status(500).json({ error: 'Failed to delete note' });
+  }
+});
+
+// ---- Per-event AI assistant chat ----
+
+// Get chat history for an event
+app.get('/api/events/:id/chat', async (req, res) => {
+  try {
+    const result = await db.query.eventChatMessages.findMany({
+      where: and(eq(eventChatMessages.event_id, req.params.id), eq(eventChatMessages.user_id, req.userId)),
+      orderBy: (t, { asc }) => [asc(t.created_at)],
+    });
+    res.json(result);
+  } catch (e) {
+    console.error('Failed to fetch chat:', e instanceof Error ? e.message : 'Unknown error');
+    res.status(500).json({ error: 'Failed to fetch chat' });
+  }
+});
+
+// Ask a question; answers are grounded in the event record + notes + history.
+app.post('/api/events/:id/chat', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: 'AI chat is not configured — the Anthropic API key is not set.' });
+    }
+    const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+    if (!message) return res.status(400).json({ error: 'message is required' });
+
+    const event = await db.query.events.findFirst({
+      where: and(eq(events.id, id), eq(events.user_id, req.userId)),
+    });
+    if (!event) return res.status(404).json({ error: 'Not found' });
+
+    const notes = await db.query.eventNotes.findMany({
+      where: and(eq(eventNotes.event_id, id), eq(eventNotes.user_id, req.userId)),
+      columns: { title: true, content: true },
+    });
+
+    const recent = await db.query.eventChatMessages.findMany({
+      where: and(eq(eventChatMessages.event_id, id), eq(eventChatMessages.user_id, req.userId)),
+      orderBy: (t, { desc }) => [desc(t.created_at)],
+      limit: 20,
+    });
+    // chronologically ordered for the prompt
+    const history = recent.reverse().map((m) => ({ role: m.role, content: m.content }));
+
+    const answer = await answerEventQuestion(anthropic, event, notes, history, message);
+    if (!answer) throw new Error('No response from AI');
+
+    const now = new Date();
+    const [userMsg] = await db.insert(eventChatMessages).values({
+      id: crypto.randomUUID(), user_id: req.userId, event_id: id, role: 'user', content: message, created_at: now,
+    }).returning();
+    const [assistantMsg] = await db.insert(eventChatMessages).values({
+      id: crypto.randomUUID(), user_id: req.userId, event_id: id, role: 'assistant', content: answer, created_at: new Date(),
+    }).returning();
+
+    res.json({ userMessage: userMsg, assistantMessage: assistantMsg });
+  } catch (e) {
+    console.error('Failed to chat:', e instanceof Error ? e.message : 'Unknown error');
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Failed to chat' });
+  }
+});
+
+// ---- Note-template document export (.docx) ----
+
+app.get('/api/events/:id/export-docx', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const event = await db.query.events.findFirst({
+      where: and(eq(events.id, id), eq(events.user_id, req.userId)),
+    });
+    if (!event) return res.status(404).json({ error: 'Not found' });
+
+    const notes = await db.query.eventNotes.findMany({
+      where: and(eq(eventNotes.event_id, id), eq(eventNotes.user_id, req.userId)),
+      columns: { title: true, content: true },
+    });
+
+    const buffer = await generateNoteDocx(event, notes);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${noteDocxFilename(event)}"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error('Failed to export docx:', e instanceof Error ? e.message : 'Unknown error');
+    res.status(500).json({ error: 'Failed to export document' });
   }
 });
 

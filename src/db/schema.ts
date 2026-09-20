@@ -95,5 +95,38 @@ export const events = pgTable('events', {
   userDateIdx: index('events_user_date_idx').on(table.user_id, table.event_date),
 }));
 
+export const noteSourceEnum = pgEnum('note_source', ['typed', 'image', 'pdf', 'audio']);
+
+// Per-event knowledge: typed/pasted notes, or text extracted from uploaded
+// PDFs / handwritten images / call audio. Fed into the per-event AI assistant.
+export const eventNotes = pgTable('event_notes', {
+  id: text('id').primaryKey(),
+  user_id: text('user_id').notNull(),
+  event_id: text('event_id').notNull(),
+  source: noteSourceEnum('source').notNull().default('typed'),
+  title: text('title'),
+  content: text('content').notNull().default(''),
+  storage_url: text('storage_url'),
+  created_at: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  userEventIdx: index('event_notes_user_event_idx').on(table.user_id, table.event_id),
+}));
+
+export const chatRoleEnum = pgEnum('chat_role', ['user', 'assistant']);
+
+// Chat history for the per-event AI assistant.
+export const eventChatMessages = pgTable('event_chat_messages', {
+  id: text('id').primaryKey(),
+  user_id: text('user_id').notNull(),
+  event_id: text('event_id').notNull(),
+  role: chatRoleEnum('role').notNull(),
+  content: text('content').notNull(),
+  created_at: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  eventMsgIdx: index('event_chat_event_idx').on(table.user_id, table.event_id),
+}));
+
 export type EventRecord = typeof events.$inferSelect;
 export type NewEventRecord = typeof events.$inferInsert;
+export type EventNote = typeof eventNotes.$inferSelect;
+export type ChatMessage = typeof eventChatMessages.$inferSelect;

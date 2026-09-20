@@ -15,6 +15,13 @@
       "when": 1748304000000,
       "tag": "0001_rename_paperwork_column",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789894036375,
+      "tag": "0002_notes_and_chat",
+      "breakpoints": true
     }
   ]
 }
