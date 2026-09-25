@@ -1,0 +1,1 @@
+- [GitHub sync vs Git state](github-api-vs-git.md) — Verify refs and worktree separately; connected workspaces may refresh them at different times.
