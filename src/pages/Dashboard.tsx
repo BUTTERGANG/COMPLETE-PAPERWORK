@@ -17,6 +17,7 @@ import {
 } from '../components/icons/Icons';
 import { Spinner } from '../components/Spinner';
 import { EmptyState } from '../components/EmptyState';
+import IncomeProjection from '../components/IncomeProjection';
 
 export default function Dashboard() {
   const { events, loading, error } = useEvents();
@@ -139,6 +140,9 @@ export default function Dashboard() {
           value={formatCurrency(stats.avgPay)}
         />
       </div>
+
+      {/* Income projection (future events + debt carry) */}
+      <IncomeProjection />
 
       {/* Mileage (gas tracking) */}
       {(stats.mileage.thisMonthOffice > 0 ||
