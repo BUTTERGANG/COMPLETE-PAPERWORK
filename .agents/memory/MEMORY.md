@@ -1,1 +1,2 @@
 - [GitHub sync vs Git state](github-api-vs-git.md) — Verify refs and worktree separately; connected workspaces may refresh them at different times.
+- [External Neon migration state](external-neon-migrations.md) — Check live schema as well as migration history; this app’s shared Neon target had feature tables without a Drizzle ledger.
