@@ -496,6 +496,28 @@ export default function EventDetail() {
               </p>
             </div>
           )}
+          {(event.miles_to_office != null || event.miles_to_event != null) && (
+            <div className="mt-3 pt-3 border-t border-border-subtle">
+              <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-1.5">
+                Mileage
+              </p>
+              {event.miles_to_office != null && (
+                <p className="text-sm text-text-secondary">
+                  To office (one-way): <span className="font-semibold text-text-primary">
+                    {event.miles_to_office.toFixed(1)} mi
+                  </span>
+                </p>
+              )}
+              {event.miles_to_event != null && (
+                <p className="text-sm text-text-secondary">
+                  Event roundtrip (office→venue→office):{' '}
+                  <span className="font-semibold text-text-primary">
+                    {event.miles_to_event.toFixed(1)} mi
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

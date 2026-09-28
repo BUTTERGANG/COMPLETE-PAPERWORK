@@ -45,6 +45,20 @@ export default function Dashboard() {
         ? completed.reduce((sum, e) => sum + e.total_pay, 0) / completed.length
         : 0;
 
+    // Gas/mileage: two tracked categories — commute to the office (one-way)
+    // and the event roundtrip from the office. Totals for this month + YTD.
+    const mileageSum = (list: typeof events, key: 'miles_to_office' | 'miles_to_event') =>
+      list.reduce((sum, e) => sum + (e[key] ?? 0), 0);
+    const mileage = {
+      thisMonthOffice: mileageSum(thisMonthEvents, 'miles_to_office'),
+      thisMonthEvent: mileageSum(thisMonthEvents, 'miles_to_event'),
+      ytdOffice: mileageSum(ytd, 'miles_to_office'),
+      ytdEvent: mileageSum(ytd, 'miles_to_event'),
+      upcomingEvent: events
+        .filter((e) => e.status === 'upcoming')
+        .reduce((sum, e) => sum + (e.miles_to_event ?? 0), 0),
+    };
+
     return {
       totalCompleted: completed.length,
       thisMonth: thisMonthEvents.length,
@@ -52,6 +66,7 @@ export default function Dashboard() {
       thisMonthPay,
       ytdPay,
       avgPay,
+      mileage,
       next3: events
         .filter((e) => e.status === 'upcoming')
         .sort(
@@ -124,6 +139,50 @@ export default function Dashboard() {
           value={formatCurrency(stats.avgPay)}
         />
       </div>
+
+      {/* Mileage (gas tracking) */}
+      {(stats.mileage.thisMonthOffice > 0 ||
+        stats.mileage.thisMonthEvent > 0 ||
+        stats.mileage.ytdOffice > 0 ||
+        stats.mileage.ytdEvent > 0 ||
+        stats.mileage.upcomingEvent > 0) && (
+        <div className="rounded-2xl border border-border-subtle bg-surface-secondary/60 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider">
+              Mileage
+            </h3>
+            <span className="text-xs text-text-tertiary">home→office · office→event→office</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="space-y-1.5">
+              <p className="text-xs text-text-tertiary font-medium uppercase">This Month</p>
+              <p className="text-text-primary">
+                To office: <span className="font-semibold">{stats.mileage.thisMonthOffice.toFixed(1)} mi</span>
+              </p>
+              <p className="text-text-primary">
+                To events: <span className="font-semibold">{stats.mileage.thisMonthEvent.toFixed(1)} mi</span>
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-xs text-text-tertiary font-medium uppercase">YTD</p>
+              <p className="text-text-primary">
+                To office: <span className="font-semibold">{stats.mileage.ytdOffice.toFixed(1)} mi</span>
+              </p>
+              <p className="text-text-primary">
+                To events: <span className="font-semibold">{stats.mileage.ytdEvent.toFixed(1)} mi</span>
+              </p>
+            </div>
+          </div>
+          {stats.mileage.upcomingEvent > 0 && (
+            <p className="text-xs text-text-tertiary mt-3 pt-3 border-t border-border-subtle">
+              Upcoming events add <span className="font-medium text-text-secondary">
+                {stats.mileage.upcomingEvent.toFixed(1)} mi
+              </span>{' '}
+              of event driving.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Upcoming */}
       <div>

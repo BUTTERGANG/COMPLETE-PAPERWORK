@@ -102,6 +102,10 @@ export interface Event {
   other_pay: number;
   total_pay: number;
 
+  // Mileage (computed server-side; null until venue address resolves)
+  miles_to_office: number | null;
+  miles_to_event: number | null;
+
   // Structured content
   timeline: TimelineEntry[];
   music_selections: MusicSelections | null;
@@ -116,7 +120,7 @@ export interface Event {
 }
 
 // All fields editable in the manual/scan form (excludes system fields).
-export type EventFormData = Omit<Event, 'id' | 'user_id' | 'total_pay' | 'created_at' | 'updated_at' | 'paperwork_images'>;
+export type EventFormData = Omit<Event, 'id' | 'user_id' | 'total_pay' | 'miles_to_office' | 'miles_to_event' | 'created_at' | 'updated_at' | 'paperwork_images'>;
 
 export interface ParsedEvent {
   event_date: string | null;

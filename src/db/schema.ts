@@ -79,6 +79,10 @@ export const events = pgTable('events', {
   other_pay: money('other_pay'),
   total_pay: money('total_pay'),
 
+  // Mileage (computed server-side via OSRM when venue_address is set)
+  miles_to_office: numeric('miles_to_office', { precision: 10, scale: 1, mode: 'number' }),
+  miles_to_event: numeric('miles_to_event', { precision: 10, scale: 1, mode: 'number' }),
+
   // Structured content
   timeline: jsonb('timeline').$type<TimelineEntry[]>().notNull().default([]),
   music_selections: jsonb('music_selections').$type<MusicSelections>(),

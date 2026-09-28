@@ -11,6 +11,7 @@ import * as schema from '../src/db/schema';
 import { detectMediaType, extractNoteText, answerEventQuestion, type UploadPage } from './ai';
 import { generateNoteDocx, noteDocxFilename } from './docxgen';
 import { transcribeAudio } from './transcriber';
+import { computeEventMileage } from './mileage';
 
 // Replit's Anthropic integration bills usage to the account via a local proxy,
 // exposing AI_INTEGRATIONS_ANTHROPIC_* instead of a raw ANTHROPIC_API_KEY.
@@ -390,11 +391,20 @@ app.post('/api/events', async (req, res) => {
     // Compute total_pay server-side
     const totalPay = PAY_COMPONENTS.reduce((sum, key) => sum + Number(body[key] ?? 0), 0);
 
+    // Mileage: computed server-side when a venue address is present.
+    // Awaited on create so the event lands with mileage filled in; failures
+    // return nulls and never block the save.
+    const mileage = body.venue_address
+      ? await computeEventMileage(String(body.venue_address))
+      : { miles_to_office: null, miles_to_event: null };
+
     const newEvent = {
       ...body,
       id,
       user_id: req.userId,
       total_pay: totalPay,
+      miles_to_office: mileage.miles_to_office,
+      miles_to_event: mileage.miles_to_event,
       created_at: now,
       updated_at: now,
     };
@@ -415,6 +425,20 @@ app.put('/api/events/:id', async (req, res) => {
     const hasPayFields = PAY_COMPONENTS.some((key) => key in body);
 
     const updateData: Record<string, unknown> = { ...body, updated_at: new Date() };
+
+    // Mileage: recompute when the venue address changed. Failure = nulls,
+    // never blocks the save.
+    if ('venue_address' in body) {
+      if (body.venue_address) {
+        const mileage = await computeEventMileage(String(body.venue_address));
+        updateData.miles_to_office = mileage.miles_to_office;
+        updateData.miles_to_event = mileage.miles_to_event;
+      } else {
+        // Venue address cleared — clear its mileage too.
+        updateData.miles_to_office = null;
+        updateData.miles_to_event = null;
+      }
+    }
 
     if (hasPayFields) {
       // Fetch current values for any fields not being updated
