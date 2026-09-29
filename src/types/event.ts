@@ -106,6 +106,10 @@ export interface Event {
   miles_to_office: number | null;
   miles_to_event: number | null;
 
+  // Complete Weddings + Events portal sync (set by cem-sync)
+  cem_event_id?: number | null;
+  cem_service_id?: number | null;
+
   // Structured content
   timeline: TimelineEntry[];
   music_selections: MusicSelections | null;

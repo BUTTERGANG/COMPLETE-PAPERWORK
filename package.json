@@ -9,6 +9,7 @@
     "dev:server": "tsx watch server/index.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "cem-sync": "tsx scripts/cem-sync.ts",
     "preview": "vite preview"
   },
   "dependencies": {

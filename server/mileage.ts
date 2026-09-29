@@ -17,7 +17,7 @@ const OFFICE = 'REDACTED Ave, Indianapolis, IN 46237';
 const FALLBACK_HOME = { lat: 39.9904971, lon: -85.9879764 };
 const FALLBACK_OFFICE = { lat: 39.6410039, lon: -86.0827659 };
 
-const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=';
+const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q=';
 const OSRM_URL = 'https://router.project-osrm.org/route/v1/driving/';
 const METERS_PER_MILE = 1609.344;
 
@@ -111,12 +111,29 @@ function officeLeg(): Promise<number | null> {
  * geocoding/routing is unavailable. Never throws — callers save the event
  * regardless and mileage fills in when the route services respond.
  */
-export async function computeEventMileage(venueAddress: string): Promise<EventMileage> {
+export async function computeEventMileage(venueAddress: string, venueName?: string): Promise<EventMileage> {
   const toOffice = await officeLeg();
   let toEvent: number | null = null;
 
+  // Geocode fallback chain — rural county-road addresses often miss in OSM:
+  //   1. address as-is
+  //   2. suite/unit stripped ("1060 N. Capitol Ave Suite 1-102" → "1060 N Capitol Ave")
+  //   3. venue name + normalized address (venue names resolve well)
+  //   4. zip centroid (approximate, ±a mile or two — fine for fuel math)
+  const normalized = venueAddress
+    .replace(/,?\s*(Suite|Ste\.?|Unit|#)\s*[\w-]+/gi, '')
+    .replace(/\b([NSEW])\.\s/g, '$1 ');
+  const zip = venueAddress.match(/\b(\d{5})\b(?!-\d)/);
+  const candidates = [venueAddress, normalized];
+  if (venueName) candidates.push(`${venueName}, ${normalized}`);
+  if (zip) candidates.push(zip[1]);
+
   const office = await resolveOffice();
-  const venue = await geocode(venueAddress);
+  let venue: Coords | null = null;
+  for (const candidate of candidates) {
+    venue = await geocode(candidate);
+    if (venue) break;
+  }
   if (venue) {
     // Roundtrip: office → venue → office.
     const meters = await routeMeters([office, venue, office]);

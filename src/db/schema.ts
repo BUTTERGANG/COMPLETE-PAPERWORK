@@ -1,4 +1,4 @@
-import { pgTable, text, integer, numeric, boolean, timestamp, pgEnum, index, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, bigint, numeric, boolean, timestamp, pgEnum, index, jsonb } from 'drizzle-orm/pg-core';
 import type { TimelineEntry, MusicSelections } from '../types/event';
 
 export const eventStatusEnum = pgEnum('event_status', ['upcoming', 'completed', 'cancelled']);
@@ -82,6 +82,11 @@ export const events = pgTable('events', {
   // Mileage (computed server-side via OSRM when venue_address is set)
   miles_to_office: numeric('miles_to_office', { precision: 10, scale: 1, mode: 'number' }),
   miles_to_event: numeric('miles_to_event', { precision: 10, scale: 1, mode: 'number' }),
+
+  // Complete Weddings + Events portal sync (server-side upsert keys)
+  cem_event_id: bigint('cem_event_id', { mode: 'number' }),
+  cem_service_id: bigint('cem_service_id', { mode: 'number' }),
+  cem_synced_at: timestamp('cem_synced_at'),
 
   // Structured content
   timeline: jsonb('timeline').$type<TimelineEntry[]>().notNull().default([]),

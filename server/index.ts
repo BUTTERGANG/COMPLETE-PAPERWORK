@@ -143,6 +143,7 @@ const ALLOWED_EVENT_FIELDS = [
   'pay_type', 'base_pay', 'compliance_bonus', 'over_hours_pay', 'fuel_recovery', 'tip', 'overtime_pay', 'other_pay',
   'timeline', 'music_selections', 'special_instructions',
   'notes', 'raw_ai_summary', 'paperwork_images', 'status',
+  'cem_event_id', 'cem_service_id', 'cem_synced_at', // portal sync keys (set by scripts/cem-sync.ts)
 ] as const;
 
 // Pay components summed into total_pay.
@@ -155,6 +156,8 @@ function pickFields(body: Record<string, unknown>, allowed: readonly string[]) {
   for (const key of allowed) {
     if (key in body) result[key] = body[key];
   }
+  // Sync stamps arrive as ISO strings over JSON; drizzle wants Date.
+  if (typeof result.cem_synced_at === 'string') result.cem_synced_at = new Date(result.cem_synced_at);
   return result;
 }
 
@@ -395,7 +398,7 @@ app.post('/api/events', async (req, res) => {
     // Awaited on create so the event lands with mileage filled in; failures
     // return nulls and never block the save.
     const mileage = body.venue_address
-      ? await computeEventMileage(String(body.venue_address))
+      ? await computeEventMileage(String(body.venue_address), body.venue_name ? String(body.venue_name) : undefined)
       : { miles_to_office: null, miles_to_event: null };
 
     const newEvent = {
@@ -430,7 +433,7 @@ app.put('/api/events/:id', async (req, res) => {
     // never blocks the save.
     if ('venue_address' in body) {
       if (body.venue_address) {
-        const mileage = await computeEventMileage(String(body.venue_address));
+        const mileage = await computeEventMileage(String(body.venue_address), body.venue_name ? String(body.venue_name) : undefined);
         updateData.miles_to_office = mileage.miles_to_office;
         updateData.miles_to_event = mileage.miles_to_event;
       } else {
