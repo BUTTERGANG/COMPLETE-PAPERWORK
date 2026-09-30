@@ -54,6 +54,7 @@ export const events = pgTable('events', {
   load_in_time: text('load_in_time'),
   ceremony_start_time: text('ceremony_start_time'),
   ceremony_end_time: text('ceremony_end_time'),
+  ceremony_pre_time: text('ceremony_pre_time'),
   start_time: text('start_time'),
   end_time: text('end_time'),
   booked_hours: numeric('booked_hours', { precision: 10, scale: 2, mode: 'number' }),

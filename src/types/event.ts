@@ -77,6 +77,7 @@ export interface Event {
   load_in_time: string | null;
   ceremony_start_time: string | null;
   ceremony_end_time: string | null;
+  ceremony_pre_time: string | null;
   start_time: string | null;
   end_time: string | null;
   booked_hours: number | null;
@@ -163,6 +164,7 @@ export interface ParsedEvent {
   load_in_time: string | null;
   ceremony_start_time: string | null;
   ceremony_end_time: string | null;
+  ceremony_pre_time: string | null;
   start_time: string | null;
   end_time: string | null;
   booked_hours: number | null;

@@ -148,7 +148,7 @@ const ALLOWED_EVENT_FIELDS = [
   'bride_name', 'groom_name', 'bride_parents', 'groom_parents', 'guest_count',
   'maid_of_honor', 'best_man', 'flower_girl', 'ring_bearer', 'introduction_name', 'bridesmaids', 'groomsmen',
   'pickup_time', 'setup_time', 'guest_arrival_time', 'load_in_time',
-  'ceremony_start_time', 'ceremony_end_time', 'start_time', 'end_time', 'booked_hours',
+  'ceremony_start_time', 'ceremony_end_time', 'ceremony_pre_time', 'start_time', 'end_time', 'booked_hours',
   'dinner_service', 'blessing_by', 'toasts_by', 'take_requests',
   'introduce_couple', 'introduce_wedding_party', 'activities', 'music_variety',
   'pay_type', 'base_pay', 'compliance_bonus', 'over_hours_pay', 'fuel_recovery', 'tip', 'overtime_pay', 'other_pay',

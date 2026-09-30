@@ -116,6 +116,34 @@ function appStatus(a: StaffAssignment): 'upcoming' | 'completed' | 'cancelled' {
   return past ? 'completed' : 'upcoming';
 }
 
+// DJ schedule notes use 12h clock times without am/pm ("PRECEREMONY 3:30",
+// "CEREMONY 6:30"). Events run afternoon/evening, so hours < 7 mean PM.
+function noteTime12to24(raw: string): string | null {
+  const m = raw.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = m[2] ?? '00';
+  const ampm = m[3]?.toLowerCase();
+  if (ampm === 'pm' && h < 12) h += 12;
+  else if (ampm === 'am' && h === 12) h = 0;
+  else if (!ampm && h < 7) h += 12; // no marker + small hour = evening gig
+  return `${String(h).padStart(2, '0')}:${min}`;
+}
+
+// Parse typed times out of the portal's schedule notes. Planner data wins —
+// these only fill gaps (the notes are where the office writes real times).
+function parseScheduleNotes(note: string | null, fields: Record<string, unknown>) {
+  if (!note) return;
+  const pre = note.match(/PRE-?CEREMONY\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+  if (pre && !fields.ceremony_pre_time) {
+    fields.ceremony_pre_time = noteTime12to24(pre[1]);
+  }
+  const cer = note.match(/CEREMONY\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+  if (cer && !fields.ceremony_start_time) {
+    fields.ceremony_start_time = noteTime12to24(cer[1]);
+  }
+}
+
 function mapAssignment(a: StaffAssignment, ev?: CemEvent) {
   return {
     cem_event_id: a.eventId,
@@ -191,6 +219,10 @@ async function main() {
       } catch (e) {
         console.log(`   · planner unavailable for ${a.eventName} (${e instanceof Error ? e.message : '?'}) — syncing base fields only`);
       }
+
+      // Schedule notes carry real-world times ("PRECEREMONY 3:30 / CEREMONY
+      // 4:00") — fill gaps the planner didn't cover.
+      parseScheduleNotes(a.scheduleNote, fields as Record<string, unknown>);
 
       // Match existing local event by cem_service_id
       const match = existingList.find((e) => e.cem_service_id === a.eventServiceId);
