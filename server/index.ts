@@ -46,6 +46,16 @@ app.use(cors({
     // Allow requests with no origin (mobile apps, curl, Replit proxy)
     if (!origin) return callback(null, true);
     if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    // Dev servers bind arbitrary ports (vite --port, PWA preview, etc.);
+    // anything loopback is trusted outside production.
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        const { hostname } = new URL(origin);
+        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]') {
+          return callback(null, true);
+        }
+      } catch { /* malformed origin — fall through to rejection */ }
+    }
     // Trust any Replit-hosted domain (dev preview or deployment)
     try {
       const host = new URL(origin).hostname;

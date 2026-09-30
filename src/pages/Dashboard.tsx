@@ -1,11 +1,14 @@
 import { useMemo } from 'react';
-import { format, isThisMonth, isWithinInterval, addDays, startOfYear } from 'date-fns';
+import { format, isThisMonth, isWithinInterval, addDays, startOfYear, startOfToday } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { useEvents } from '../hooks/useEvents';
 import { formatCurrency } from '../lib/payCalc';
 import { parseLocalDate } from '../lib/dateUtils';
 import StatCard from '../components/StatCard';
 import EventCard from '../components/EventCard';
+import IncomeProjection from '../components/IncomeProjection';
+import PayTrend from '../components/PayTrend';
+import PastDueEvents from '../components/PastDueEvents';
 import {
   CheckIcon,
   CalendarIcon,
@@ -17,21 +20,26 @@ import {
 } from '../components/icons/Icons';
 import { Spinner } from '../components/Spinner';
 import { EmptyState } from '../components/EmptyState';
-import IncomeProjection from '../components/IncomeProjection';
 
 export default function Dashboard() {
   const { events, loading, error } = useEvents();
   const navigate = useNavigate();
 
   const stats = useMemo(() => {
+    const today = startOfToday();
+    // Date-aware "upcoming": status must say upcoming AND the date hasn't
+    // passed. Past events stuck in 'upcoming' surface under Needs Attention.
+    const isUpcoming = (e: (typeof events)[number]) =>
+      e.status === 'upcoming' && parseLocalDate(e.event_date) >= today;
+
     const completed = events.filter((e) => e.status === 'completed');
     const thisMonthEvents = events.filter((e) => isThisMonth(parseLocalDate(e.event_date)));
     const upcoming30 = events.filter(
       (e) =>
-        e.status === 'upcoming' &&
+        isUpcoming(e) &&
         isWithinInterval(parseLocalDate(e.event_date), {
-          start: new Date(),
-          end: addDays(new Date(), 30),
+          start: today,
+          end: addDays(today, 30),
         })
     );
     const thisMonthPay = thisMonthEvents.reduce((sum, e) => sum + e.total_pay, 0);
@@ -55,9 +63,7 @@ export default function Dashboard() {
       thisMonthEvent: mileageSum(thisMonthEvents, 'miles_to_event'),
       ytdOffice: mileageSum(ytd, 'miles_to_office'),
       ytdEvent: mileageSum(ytd, 'miles_to_event'),
-      upcomingEvent: events
-        .filter((e) => e.status === 'upcoming')
-        .reduce((sum, e) => sum + (e.miles_to_event ?? 0), 0),
+      upcomingEvent: events.filter(isUpcoming).reduce((sum, e) => sum + (e.miles_to_event ?? 0), 0),
     };
 
     return {
@@ -69,7 +75,7 @@ export default function Dashboard() {
       avgPay,
       mileage,
       next3: events
-        .filter((e) => e.status === 'upcoming')
+        .filter(isUpcoming)
         .sort(
           (a, b) =>
             parseLocalDate(a.event_date).getTime() - parseLocalDate(b.event_date).getTime()
@@ -87,11 +93,11 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <p className="text-sm text-text-tertiary font-medium">
-          {format(new Date(), 'EEEE, MMMM d')}
+          {format(new Date(), 'EEEE, MMMM d, yyyy')}
         </p>
         <h2 className="text-2xl font-bold tracking-tight text-text-primary mt-0.5">
           Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'} 👋
@@ -105,8 +111,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3 stagger-children">
+      {/* Past events still marked upcoming — date-aware, with one-tap fix */}
+      <PastDueEvents />
+
+      {/* Stats Grid — 2-up on phones, 3-up from tablet, 6-up on desktop */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 stagger-children">
         <StatCard
           icon={<CheckIcon size={17} />}
           label="Completed"
@@ -141,52 +150,14 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Income projection (future events + debt carry) */}
-      <IncomeProjection />
-
-      {/* Mileage (gas tracking) */}
-      {(stats.mileage.thisMonthOffice > 0 ||
-        stats.mileage.thisMonthEvent > 0 ||
-        stats.mileage.ytdOffice > 0 ||
-        stats.mileage.ytdEvent > 0 ||
-        stats.mileage.upcomingEvent > 0) && (
-        <div className="rounded-2xl border border-border-subtle bg-surface-secondary/60 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider">
-              Mileage
-            </h3>
-            <span className="text-xs text-text-tertiary">home→office · office→event→office</span>
-          </div>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="space-y-1.5">
-              <p className="text-xs text-text-tertiary font-medium uppercase">This Month</p>
-              <p className="text-text-primary">
-                To office: <span className="font-semibold">{stats.mileage.thisMonthOffice.toFixed(1)} mi</span>
-              </p>
-              <p className="text-text-primary">
-                To events: <span className="font-semibold">{stats.mileage.thisMonthEvent.toFixed(1)} mi</span>
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-xs text-text-tertiary font-medium uppercase">YTD</p>
-              <p className="text-text-primary">
-                To office: <span className="font-semibold">{stats.mileage.ytdOffice.toFixed(1)} mi</span>
-              </p>
-              <p className="text-text-primary">
-                To events: <span className="font-semibold">{stats.mileage.ytdEvent.toFixed(1)} mi</span>
-              </p>
-            </div>
-          </div>
-          {stats.mileage.upcomingEvent > 0 && (
-            <p className="text-xs text-text-tertiary mt-3 pt-3 border-t border-border-subtle">
-              Upcoming events add <span className="font-medium text-text-secondary">
-                {stats.mileage.upcomingEvent.toFixed(1)} mi
-              </span>{' '}
-              of event driving.
-            </p>
-          )}
+      {/* Money + miles side by side on desktop, stacked on mobile */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <IncomeProjection />
+        <div className="space-y-4">
+          <PayTrend />
+          <MileageCard mileage={stats.mileage} />
         </div>
-      )}
+      </div>
 
       {/* Upcoming */}
       <div>
@@ -208,11 +179,11 @@ export default function Dashboard() {
           <EmptyState
             icon={<CalendarIcon size={24} className="text-accent" />}
             title="No upcoming events"
-            description="Scan paperwork to add your next gig"
-            action={{ label: 'Scan Paperwork', onClick: () => navigate('/scan') }}
+            description="Sync the portal or scan paperwork to add your next gig"
+            action={{ label: 'Add Event', onClick: () => navigate('/add') }}
           />
         ) : (
-          <div className="space-y-3 stagger-children">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 stagger-children">
             {stats.next3.map((event) => (
               <EventCard
                 key={event.id}
@@ -224,14 +195,72 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* FAB */}
+      {/* FAB — mobile-only affordance; desktop has header buttons */}
       <button
         onClick={() => navigate('/scan')}
-        className="fixed bottom-24 right-4 w-14 h-14 rounded-2xl bg-accent hover:bg-accent-hover text-white flex items-center justify-center z-40 transition-all hover:scale-105 active:scale-95 fab"
+        className="md:hidden fixed bottom-24 right-4 w-14 h-14 rounded-2xl bg-accent hover:bg-accent-hover text-white flex items-center justify-center z-40 transition-all hover:scale-105 active:scale-95 fab"
         aria-label="Scan Paperwork"
       >
         <PlusIcon size={24} strokeWidth={2.5} />
       </button>
+    </div>
+  );
+}
+
+// Mileage summary — extracted for the two-column desktop layout.
+type Mileage = {
+  thisMonthOffice: number;
+  thisMonthEvent: number;
+  ytdOffice: number;
+  ytdEvent: number;
+  upcomingEvent: number;
+};
+
+function MileageCard({ mileage }: { mileage: Mileage }) {
+  const hasAny =
+    mileage.thisMonthOffice > 0 ||
+    mileage.thisMonthEvent > 0 ||
+    mileage.ytdOffice > 0 ||
+    mileage.ytdEvent > 0 ||
+    mileage.upcomingEvent > 0;
+  if (!hasAny) return null;
+
+  return (
+    <div className="rounded-2xl border border-border-subtle bg-surface-secondary/60 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider">
+          Mileage
+        </h3>
+        <span className="text-xs text-text-tertiary">home→office · office→event→office</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="space-y-1.5">
+          <p className="text-xs text-text-tertiary font-medium uppercase">This Month</p>
+          <p className="text-text-primary">
+            To office: <span className="font-semibold">{mileage.thisMonthOffice.toFixed(1)} mi</span>
+          </p>
+          <p className="text-text-primary">
+            To events: <span className="font-semibold">{mileage.thisMonthEvent.toFixed(1)} mi</span>
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-xs text-text-tertiary font-medium uppercase">YTD</p>
+          <p className="text-text-primary">
+            To office: <span className="font-semibold">{mileage.ytdOffice.toFixed(1)} mi</span>
+          </p>
+          <p className="text-text-primary">
+            To events: <span className="font-semibold">{mileage.ytdEvent.toFixed(1)} mi</span>
+          </p>
+        </div>
+      </div>
+      {mileage.upcomingEvent > 0 && (
+        <p className="text-xs text-text-tertiary mt-3 pt-3 border-t border-border-subtle">
+          Upcoming events add <span className="font-medium text-text-secondary">
+            {mileage.upcomingEvent.toFixed(1)} mi
+          </span>{' '}
+          of event driving.
+        </p>
+      )}
     </div>
   );
 }
