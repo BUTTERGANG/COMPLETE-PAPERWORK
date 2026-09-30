@@ -229,6 +229,15 @@ export default function EventDetail() {
             {showExportMenu && (
               <div className="absolute right-0 top-full mt-1 z-50 card-elevated !p-1 min-w-[160px] shadow-lg">
                 <a
+                  href={`/api/events/${encodeURIComponent(id!)}/export-runsheet`}
+                  download
+                  onClick={() => setShowExportMenu(false)}
+                  className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-2"
+                >
+                  <FileTextIcon size={14} className="text-accent" />
+                  <span>Run Sheet (order of events)</span>
+                </a>
+                <a
                   href={`/api/events/${encodeURIComponent(id!)}/export-docx`}
                   download
                   onClick={() => setShowExportMenu(false)}

@@ -10,6 +10,7 @@ import heicConvert from 'heic-convert';
 import * as schema from '../src/db/schema';
 import { detectMediaType, extractNoteText, answerEventQuestion, type UploadPage } from './ai';
 import { generateNoteDocx, noteDocxFilename } from './docxgen';
+import { generateRunSheetDocx, runSheetFilename } from './runsheet';
 import { transcribeAudio } from './transcriber';
 import { computeEventMileage } from './mileage';
 
@@ -673,6 +674,26 @@ app.get('/api/events/:id/export-docx', async (req, res) => {
   } catch (e) {
     console.error('Failed to export docx:', e instanceof Error ? e.message : 'Unknown error');
     res.status(500).json({ error: 'Failed to export document' });
+  }
+});
+
+// ---- Order-of-events run sheet (.docx) — synthesized, concise, TBD-aware ----
+
+app.get('/api/events/:id/export-runsheet', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const event = await db.query.events.findFirst({
+      where: and(eq(events.id, id), eq(events.user_id, req.userId)),
+    });
+    if (!event) return res.status(404).json({ error: 'Not found' });
+
+    const buffer = await generateRunSheetDocx(event as unknown as Record<string, unknown>);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${runSheetFilename(event as unknown as Record<string, unknown>)}"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error('Failed to export runsheet:', e instanceof Error ? e.message : 'Unknown error');
+    res.status(500).json({ error: 'Failed to export run sheet' });
   }
 });
 

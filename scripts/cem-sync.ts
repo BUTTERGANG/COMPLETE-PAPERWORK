@@ -22,6 +22,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { extractPlannerFields, type CemPlanner } from './cem-planner';
 
 const TOKEN_FILE = path.join(os.homedir(), '.secrets', 'complete-paperwork-cem-token.json');
 const API_BASE = `http://127.0.0.1:${process.env.API_PORT || 3000}`;
@@ -173,7 +174,23 @@ async function main() {
         ev = await cemGet<CemEvent>(`/events/${a.eventId}`, token);
         venueCache.set(a.eventId, ev);
       }
-      const fields = mapAssignment(a, ev);
+      let fields = mapAssignment(a, ev);
+
+      // Planning sheet answers → typed fields (contacts, times, songs, party…)
+      try {
+        const planner = await cemGet<CemPlanner>(`/events/${a.eventId}/planner`, token);
+        const pf = extractPlannerFields(planner);
+        const plannerNotes = typeof pf.planner_notes === 'string' ? pf.planner_notes : '';
+        delete pf.planner_notes;
+        const links = typeof fields.notes === 'string' ? fields.notes : '';
+        fields = {
+          ...fields,
+          ...pf,
+          notes: [links, plannerNotes].filter(Boolean).join('\n\n'),
+        };
+      } catch (e) {
+        console.log(`   · planner unavailable for ${a.eventName} (${e instanceof Error ? e.message : '?'}) — syncing base fields only`);
+      }
 
       // Match existing local event by cem_service_id
       const match = existingList.find((e) => e.cem_service_id === a.eventServiceId);
