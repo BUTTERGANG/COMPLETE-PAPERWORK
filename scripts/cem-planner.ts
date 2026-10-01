@@ -53,14 +53,24 @@ function str(v: unknown): string | null {
 function selectedLabels(q: CemQuestion): string[] {
   const opts = q.options ?? [];
   const labelById = new Map(opts.map((o) => [String(o.id), o.label]));
-  if (Array.isArray(q.value)) {
-    const vals = q.value.map(String).filter(Boolean);
+  // Values sometimes arrive as JSON strings ('["1620","1621",...]' or
+  // '[{"id":..,"label":"Name"}]') — unwrap those first.
+  let value: unknown = q.value;
+  if (typeof value === 'string' && /^[\[{]/.test(value.trim())) {
+    try { value = JSON.parse(value); } catch { /* keep raw */ }
+  }
+  if (Array.isArray(value)) {
+    // Object arrays (wedding party members) → labels
+    if (value.length && typeof value[0] === 'object' && value[0] !== null && 'label' in value[0]) {
+      return (value as { label: string }[]).map((o) => o.label).filter(Boolean);
+    }
+    const vals = value.map(String).filter(Boolean);
     if (vals.length && vals.every((v) => labelById.has(v))) {
       return vals.map((v) => labelById.get(v)!);
     }
     return vals;
   }
-  if (typeof q.value === 'string' && labelById.has(q.value)) return [labelById.get(q.value)!];
+  if (typeof value === 'string' && labelById.has(value)) return [labelById.get(value)!];
   return [];
 }
 
@@ -99,8 +109,8 @@ export function extractPlannerFields(planner: CemPlanner): PlannerFields {
   };
 
   // Emails / phones come in pairs (couple) — first = client, second = partner.
-  const emailQs = questions.filter(({ q }) => /^email$/i.test(q.prompt));
-  const cellQs = questions.filter(({ q }) => /^(cell|phone|mobile)$/i.test(q.prompt));
+  const emailQs = questions.filter(({ q }) => /^email/i.test(q.prompt));
+  const cellQs = questions.filter(({ q }) => /^(cell|phone|mobile)/i.test(q.prompt));
 
   const f: PlannerFields = {
     client_email: emailQs[0] ? str(emailQs[0].q.value) : null,
@@ -121,18 +131,21 @@ export function extractPlannerFields(planner: CemPlanner): PlannerFields {
     best_man: val('Best Man/Person'),
     flower_girl: val('Flower Girl'),
     ring_bearer: val('Ring Bearer'),
-    take_requests: (selOne('Would you like your DJ to take requests?') ?? '').toLowerCase() === 'yes'
-      ? true
-      : (get('would you like your dj to take requests?') ? false : null),
-    introduce_couple: (selOne('Would you like to be introduced upon arrival?') ?? '').toLowerCase() === 'yes'
-      ? true
-      : (get('would you like to be introduced upon arrival?') ? false : null),
-    introduce_wedding_party: (selOne('Would you like the DJ to introduce the wedding party?') ?? '').toLowerCase() === 'yes'
-      ? true
-      : (get('would you like the dj to introduce the wedding party?') ? false : null),
+    take_requests: yesNo('Would you like your DJ to take requests?'),
+    introduce_couple: yesNo('Would you like to be introduced upon arrival?'),
+    introduce_wedding_party: yesNo('Would you like the DJ to introduce the wedding party?'),
     activities: sel('Interactive activities to encourage your guests to get involved that make for an enjoyable evening!'),
     music_variety: sel('Dance Floor Music'),
   };
+
+  // Yes/No questions: only trust an actual answer. Unanswered must stay
+  // null — a couple skipping the question doesn't mean "No".
+  function yesNo(prompt: string): boolean | null {
+    const v = (selOne(prompt) ?? '').toLowerCase();
+    if (v.startsWith('yes') || v.startsWith('y')) return true;
+    if (v.startsWith('no') || v.startsWith('n')) return false;
+    return null;
+  }
 
   // Ceremony vs Reception both have 'Start Time'/'End Time' — pull them per section.
   const sectionTimes = (sectionName: string) => {
@@ -150,45 +163,114 @@ export function extractPlannerFields(planner: CemPlanner): PlannerFields {
   f.start_time = rec.start;
   f.end_time = rec.end;
 
-  // Dedication dances → music_selections
-  f.music_selections = {
-    background_music: selOne('Background Music'),
-    first_dance: val('First Dance Song Choice'),
-    father_daughter_dance: val('Father/Daughter Dance Song Choice'),
-    mother_son_dance: val('Mother/Son Dance Song Choice'),
-    wedding_party_dance: val('Wedding Party Dance Song Choice'),
-    other_dedication: val('Additional/Other Dedication Dances'),
-    last_dance: val('Last Dance Song Choice'),
-    parents_dance: val("Parents' Dance Song Choice"),
-    cake_cutting: val('Cake Cutting Song Choice'),
-    bouquet_toss: val('Bouquet Toss Song Choice'),
-    garter_toss: val('Garter Toss Song Choice'),
-    grand_entrance: val('Grand Entrance Song Choice'),
-    ceremony_processional: val('Processional Song Choice'),
-    ceremony_recessional: val('Recessional Song Choice'),
-    music_preferences: [
-      val('If other, please specify'),
-      val('Additional music requests or notes'),
-    ].filter(Boolean).join(' | ') || null,
+  // Music + flow questions. The portal's prompt wording varies between
+  // planner versions ("Escorting Mothers Song" vs "Escorting Mothers",
+  // "What type of background music would you like?" vs "Background
+  // Music"), so match by ordered patterns instead of exact prompts.
+  // First match wins; matched prompts are excluded from the notes dump.
+  const ms: Record<string, string | string[] | null> = {
+    background_music: null, escorting_mothers: null, pre_processional: null,
+    ceremony_processional: null, unity_ceremony: null, ceremony_recessional: null,
+    ceremony_interlude: null, grand_entrance: null, first_dance: null,
+    father_daughter_dance: null, mother_son_dance: null, parents_dance: null,
+    wedding_party_dance: null, other_dedication: null, cake_cutting: null,
+    bouquet_toss: null, garter_toss: null, last_dance: null, send_off_exit: null,
+    must_play: [], do_not_play: [], music_preferences: null,
   };
+  f.introduction_name = null;
+  f.guest_arrival_time = null;
+  const prefExtras: string[] = [];
+  const matchedPrompts = new Set<string>();
+
+  // "3:30pm" / "3:30 pm" -> "15:30"; leaves "16:00" alone. Small hours = PM.
+  const time24 = (s: string): string | null => {
+    const m = s.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+    if (!m) return null;
+    let h = Number(m[1]);
+    const ampm = m[3]?.toLowerCase();
+    if (ampm === 'pm' && h < 12) h += 12;
+    else if (ampm === 'am' && h === 12) h = 0;
+    else if (!ampm && h < 7) h += 12;
+    return `${String(h).padStart(2, '0')}:${m[2] ?? '00'}`;
+  };
+
+  const patterns: [RegExp, (q: CemQuestion, display: string, labels: string[]) => void][] = [
+    // "If other..." variants must win over their parent question's pattern
+    [/^if other.*background music/i, (q) => { const v = str(q.value); if (v) prefExtras.push(v); }],
+    [/^if other/i, (q) => { const v = str(q.value); if (v) prefExtras.push(v); }],
+    [/background music/i, (q, _d, l) => { ms.background_music = l[0] ?? str(q.value); }],
+    [/escorting mothers/i, (q) => { ms.escorting_mothers = str(q.value); }],
+    [/pre-?processional/i, (q) => { ms.pre_processional = str(q.value); }],
+    [/processional/i, (q) => { ms.ceremony_processional = str(q.value); }],
+    [/unity (candle|sand)/i, (q) => { ms.unity_ceremony = str(q.value); }],
+    [/recessional/i, (q) => { ms.ceremony_recessional = str(q.value); }],
+    [/interlude/i, (q) => { ms.ceremony_interlude = str(q.value); }],
+    [/grand entrance/i, (q) => { ms.grand_entrance = str(q.value); }],
+    [/first dance/i, (q) => { ms.first_dance = str(q.value); }],
+    [/father\s*\/?\s*daughter/i, (q) => { ms.father_daughter_dance = str(q.value); }],
+    [/mother\s*\/?\s*son/i, (q) => { ms.mother_son_dance = str(q.value); }],
+    [/wedding party dance/i, (q) => { ms.wedding_party_dance = str(q.value); }],
+    [/parents'? dance/i, (q) => { ms.parents_dance = str(q.value); }],
+    [/dedication/i, (q) => { ms.other_dedication = str(q.value); }],
+    [/cake cutting/i, (q) => { ms.cake_cutting = str(q.value); }],
+    [/bouquet/i, (q) => { ms.bouquet_toss = str(q.value); }],
+    [/garter/i, (q) => { ms.garter_toss = str(q.value); }],
+    [/last dance/i, (q) => { ms.last_dance = str(q.value); }],
+    [/send[- ]?off|grand exit/i, (q) => { ms.send_off_exit = str(q.value); }],
+    [/additional songs you would like played|must play/i, (q) => {
+      ms.must_play = String(q.value ?? '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    }],
+    [/do not play|don'?t play/i, (q) => {
+      ms.do_not_play = String(q.value ?? '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    }],
+    [/additional music requests or notes/i, (q) => { const v = str(q.value); if (v) prefExtras.push(v); }],
+    [/how would you like to be introduced/i, (q) => { f.introduction_name = str(q.value); }],
+    [/guest arrival/i, (q) => { const v = str(q.value); if (v) f.guest_arrival_time = time24(v) ?? v; }],
+    [/doors open/i, () => { /* venue logistics — left in notes */ }],
+  ];
+
+  for (const { q } of questions) {
+    const display = (str(q.value) ?? selectedLabels(q).join(', ')) || null;
+    if (!display) continue;
+    for (const [re, apply] of patterns) {
+      if (re.test(q.prompt)) {
+        const labels = selectedLabels(q);
+        apply(q, display, labels);
+        matchedPrompts.add(q.prompt.toLowerCase());
+        break;
+      }
+    }
+  }
+  ms.music_preferences = prefExtras.join(' | ') || null;
+  // "Background Music: Other" is meaningless alone — the real answer is the
+  // "if other..." free text.
+  const bg = ms.background_music;
+  if (typeof bg === 'string' && bg.toLowerCase() === 'other' && prefExtras.length) {
+    ms.background_music = prefExtras[0];
+  }
+  f.music_selections = ms;
+
+  // Being told what to introduce them as implies they want an intro.
+  if (f.introduction_name && f.introduce_couple === null) f.introduce_couple = true;
+
+  // Bridesmaids / groomsmen answers arrive as object arrays → label lists.
+  const bridalQ = questions.find(({ q }) => /^bridesmaids$/i.test(q.prompt));
+  const groomsQ = questions.find(({ q }) => /^groomsmen$/i.test(q.prompt));
+  if (bridalQ) f.bridesmaids = selectedLabels(bridalQ.q);
+  if (groomsQ) f.groomsmen = selectedLabels(groomsQ.q);
 
   // Everything else the couple filled out → notes so the AI assistant can use it.
   const noteLines: string[] = [];
-  const MAPPED = new Set([
-    'estimated number of guests', 'your name', "fiance's name", 'email', 'cell', 'phone', 'mobile',
-    'start time', 'end time', 'dj attire preference', 'will you be serving:',
-    'who will give the blessing if applicable?', 'who will be giving toasts?',
-    'maid/matron of honor', 'best man/person', 'flower girl', 'ring bearer',
-    'would you like your dj to take requests?', 'would you like to be introduced upon arrival?',
-    'would you like the dj to introduce the wedding party?',
-    'interactive activities to encourage your guests to get involved that make for an enjoyable evening!',
-    'dance floor music', 'background music', 'if other, please specify',
-    'first dance song choice', 'father/daughter dance song choice', 'mother/son dance song choice',
-    'wedding party dance song choice', 'additional/other dedication dances',
-  ]);
+  const contactRe = /^estimated number of guests|^your name$|^fiance's name|^email|^cell|^phone|^mobile|^mailing address|^address line|^city$|^state\/province|^zip|^what are the best days|^what is the best time|^social media|^wedding website|^pinterest|^instagram|^facebook|^favorite/i;
+  const mappedRe = /^(start time|end time|dj attire preference|will you be serving:|who will give the blessing|who will be giving toasts|maid\/matron of honor|best man|flower girl|ring bearer|would you like your dj|would you like to be introduced|would you like the dj to introduce|interactive activities|dance floor music)/i;
   for (const { section, panel, q } of questions) {
-    if (MAPPED.has(q.prompt.toLowerCase())) continue;
-    const v = str(q.value) ?? (selectedLabels(q).join(', ') || null);
+    const p = q.prompt.toLowerCase();
+    if (matchedPrompts.has(p) || mappedRe.test(p) || contactRe.test(p)) continue;
+    // Checkbox groups store option ids — resolve to labels for readability.
+    const labels = selectedLabels(q);
+    const v = (str(q.value) && !/^\d+(\s*,\s*\d+)*$/.test(str(q.value)!))
+      ? str(q.value)
+      : (labels.join(', ') || null);
     if (!v) continue;
     noteLines.push(`${section} > ${panel} > ${q.prompt}: ${v}`);
   }
