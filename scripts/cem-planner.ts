@@ -90,6 +90,22 @@ export function extractPlannerFields(planner: CemPlanner): PlannerFields {
       }
     }
   }
+  // Planner-wide option index: some questions (e.g. activities) carry ids
+  // from a newer option set than their own options list — any question's
+  // options can provide the label.
+  const globalLabels = new Map<string, string>();
+  for (const sheet of planner.planningSheets ?? []) {
+    for (const section of sheet.sections ?? []) {
+      for (const panel of section.panels ?? []) {
+        for (const q of panel.questions ?? []) {
+          for (const o of q.options ?? []) globalLabels.set(String(o.id), o.label);
+        }
+      }
+    }
+  }
+  const resolveIds = (list: string[]): string[] =>
+    list.map((v) => globalLabels.get(v) ?? v);
+
   const get = (prompt: string) => byPrompt.get(prompt.toLowerCase());
   const val = (prompt: string) => str(get(prompt)?.value);
   const sel = (prompt: string) => {
@@ -242,6 +258,11 @@ export function extractPlannerFields(planner: CemPlanner): PlannerFields {
     }
   }
   ms.music_preferences = prefExtras.join(' | ') || null;
+  // ...resolve any remaining raw option ids in list fields to labels.
+  f.activities = resolveIds((f.activities as string[]) ?? []);
+  f.music_variety = resolveIds((f.music_variety as string[]) ?? []);
+  ms.must_play = resolveIds(ms.must_play as string[]);
+  ms.do_not_play = resolveIds(ms.do_not_play as string[]);
   // "Background Music: Other" is meaningless alone — the real answer is the
   // "if other..." free text.
   const bg = ms.background_music;

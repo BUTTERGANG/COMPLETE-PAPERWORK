@@ -75,10 +75,12 @@ function lines(event: Record<string, unknown>): Line[] {
   out.push({ label: 'RECESSIONAL', value: s(ms.ceremony_recessional) });
 
   // Intros
-  if (event.introduce_couple === false || event.introduce_wedding_party === false) {
+  if (event.introduce_couple === false && event.introduce_wedding_party !== true) {
     out.push({ label: 'NO INTROS', value: null, bare: true });
-  } else if (s(ms.grand_entrance) || event.introduce_couple === true) {
-    out.push({ label: 'INTROS', value: s(ms.grand_entrance) ?? TBD });
+  } else if (s(ms.grand_entrance) || s(event.introduction_name as string) || event.introduce_couple === true || event.introduce_wedding_party === true) {
+    // Song if known; otherwise how they want to be introduced ("Mr. & Mrs. X").
+    const intro = s(ms.grand_entrance) ?? s(event.introduction_name as string) ?? TBD;
+    out.push({ label: 'INTROS', value: intro });
   }
 
   // Dinner
@@ -121,7 +123,7 @@ export async function generateRunSheetDocx(event: Record<string, unknown>): Prom
     new Paragraph({
       alignment: AlignmentType.LEFT,
       spacing: { before, after },
-      children: [new TextRun({ text, bold, size })],
+      children: [new TextRun({ text, bold, size, color: '111111' })],
     });
 
   // Header block
@@ -154,8 +156,8 @@ export async function generateRunSheetDocx(event: Record<string, unknown>): Prom
         new Paragraph({
           spacing: { before: 120, after: 40 },
           children: [
-            new TextRun({ text: `${line.label}- `, bold: true, size: 22 }),
-            new TextRun({ text: line.value || TBD, size: 22 }),
+            new TextRun({ text: `${line.label}- `, bold: true, size: 22, color: '111111' }),
+            new TextRun({ text: line.value || TBD, size: 22, color: '1A1A1A' }),
           ],
         })
       );
@@ -167,7 +169,7 @@ export async function generateRunSheetDocx(event: Record<string, unknown>): Prom
   if (si) {
     paras.push(head('NOTES', 22, true, 240, 80));
     for (const l of si.split('\n').filter(Boolean)) {
-      paras.push(new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: l, size: 22 })] }));
+      paras.push(new Paragraph({ spacing: { after: 40 }, children: [new TextRun({ text: l, size: 22, color: '1A1A1A' })] }));
     }
   }
 
