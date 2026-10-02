@@ -118,8 +118,20 @@ const shutdown = async () => {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-// Auth middleware - extract user from Replit identity headers
+// Auth middleware - extract user from Replit identity headers.
+// x-replit-user-id/-name are only trustworthy when Replit's own proxy sets
+// them, which only happens when this process is actually running on Replit's
+// infrastructure (REPL_ID is set by that platform, never by this app). The
+// Dockerfile in this repo lets the server run standalone (e.g. behind a bare
+// reverse proxy, or exposed directly) — there, nothing strips client-supplied
+// headers, so trusting them blindly would let any caller impersonate any
+// user. Refuse to trust them outside Replit's own infra.
+const ON_REPLIT_INFRA = Boolean(process.env.REPL_ID);
 app.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'production' && !ON_REPLIT_INFRA) {
+    return res.status(401).json({ error: 'Unauthorized: this deployment has no trusted identity source' });
+  }
+
   const userId = req.headers['x-replit-user-id'] as string | undefined;
   const userName = req.headers['x-replit-user-name'] as string | undefined;
 

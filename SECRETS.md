@@ -72,3 +72,5 @@ set -a; source ~/.secrets/<repo>.env; set +a;  # then start the server
 - SESSION_SECRET — *describe*
 - DATABASE_URL — *describe*
 - ANTHROPIC_API_KEY — *describe*
+- MILEAGE_HOME_ADDRESS — home address used for mileage calc (server/mileage.ts); keep out of source, server throws on startup if unset
+- MILEAGE_OFFICE_ADDRESS — office address used for mileage calc (server/mileage.ts)

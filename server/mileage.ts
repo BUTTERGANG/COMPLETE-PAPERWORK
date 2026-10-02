@@ -9,8 +9,12 @@ const logger: Logger = { error: () => {} };
 //   2. miles_to_event  — office → venue → office (the event roundtrip)
 // Computed via free, keyless services: Nominatim (geocode) + OSRM (route).
 
-const HOME = '13862 Carolina Court, Fishers, IN 46038';
-const OFFICE = 'REDACTED Ave, Indianapolis, IN 46237';
+const HOME = process.env.MILEAGE_HOME_ADDRESS ?? (() => {
+  throw new Error('MILEAGE_HOME_ADDRESS environment variable must be set');
+})();
+const OFFICE = process.env.MILEAGE_OFFICE_ADDRESS ?? (() => {
+  throw new Error('MILEAGE_OFFICE_ADDRESS environment variable must be set');
+})();
 
 // Verified coordinates (fallback if geocoding is unreachable, so mileage
 // never blocks an event save).

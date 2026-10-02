@@ -32,6 +32,10 @@ dist-ssr
 # Claude Code
 .claude/
 
+# Local data exports / scratch files — may contain real client PII
+r.json
+your
+
 # Replit (runtime only — .replit must be tracked so GitHub import works)
 .nix-env
 .config/
